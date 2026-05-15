@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.3] - 2026-05-15
+## [1.0.0] - 2026-05-15
 
 ### Bug Fixes
 
@@ -15,5 +15,6 @@
 
 - Fix deployment pipeline for publishing
 - Release v0.1.3
+- Release v1.0.0
 
 
