@@ -1,6 +1,6 @@
 {
   "name": "mt12-telemetry-electron",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Electron frontend for MT12TelemetryAPP",
   "main": "dist/main/main.js",
   "author": "dgara",
