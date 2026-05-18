@@ -1,6 +1,11 @@
 # Changelog
 
-## [2.0.0] - 2026-05-18
+## [2.0.1] - 2026-05-18
+
+### Documentation
+
+- Update documentation docs
+- Update README with automated screenshots
 
 ### Features
 
@@ -14,6 +19,8 @@
 - Rename app to MT12OverlayStudio
 - Remove generate dumy
 - Release v2.0.0
+- Transfer the repository to TopeRC organization
+- Release v2.0.1
 
 ## [1.0.0] - 2026-05-15
 
