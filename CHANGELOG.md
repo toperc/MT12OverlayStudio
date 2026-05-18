@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.1] - 2026-05-18
+## [2.0.2] - 2026-05-18
 
 ### Documentation
 
@@ -13,6 +13,7 @@
 - Add widget transform, gauge rename, per-widget data range
 - Improve editor
 - Improve layout
+- Add virustotal check
 
 ### Miscellaneous
 
@@ -21,6 +22,7 @@
 - Release v2.0.0
 - Transfer the repository to TopeRC organization
 - Release v2.0.1
+- Release v2.0.2
 
 ## [1.0.0] - 2026-05-15
 
