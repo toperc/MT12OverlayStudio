@@ -39,5 +39,5 @@ topo_order = false
 sort_commits = "oldest"
 
 [remote.github]
-owner = "dgarana"
+owner = "toperc"
 repo = "MT12OverlayStudio"

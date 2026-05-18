@@ -2,7 +2,7 @@ appId: dev.dgara.mt12overlaystudio
 productName: MT12OverlayStudio
 publish:
   provider: github
-  owner: dgarana
+  owner: toperc
   repo: MT12OverlayStudio
 directories:
   buildResources: build

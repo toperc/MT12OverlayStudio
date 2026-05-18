@@ -3,14 +3,14 @@
   <h1>MT12OverlayStudio</h1>
   <p>Frame-accurate transparent video overlays from RadioMaster MT12 telemetry logs.</p>
   <p>
-    <a href="https://github.com/dgarana/MT12OverlayStudio/releases/latest">Download</a> ·
+    <a href="https://github.com/toperc/MT12OverlayStudio/releases/latest">Download</a> ·
     <a href="https://www.youtube.com/@TopeRC-es">TopeRC on YouTube</a>
   </p>
   <p>
-    <img src="https://img.shields.io/github/v/release/dgarana/MT12OverlayStudio" alt="release" />
-    <img src="https://img.shields.io/github/release-date/dgarana/MT12OverlayStudio" alt="release date" />
-    <img src="https://img.shields.io/github/downloads/dgarana/MT12OverlayStudio/total" alt="downloads" />
-    <img src="https://img.shields.io/github/downloads/dgarana/MT12OverlayStudio/latest/total" alt="downloads@latest" />
+    <img src="https://img.shields.io/github/v/release/toperc/MT12OverlayStudio" alt="release" />
+    <img src="https://img.shields.io/github/release-date/toperc/MT12OverlayStudio" alt="release date" />
+    <img src="https://img.shields.io/github/downloads/toperc/MT12OverlayStudio/total" alt="downloads" />
+    <img src="https://img.shields.io/github/downloads/toperc/MT12OverlayStudio/latest/total" alt="downloads@latest" />
     <img src="https://img.shields.io/badge/platform-windows%20%7C%20mac%20%7C%20linux-blue" alt="platform" />
   </p>
 </div>
@@ -88,7 +88,7 @@ Render the overlay to a transparent ProRes 4444 MOV using ffmpeg, or to a PNG fr
 
 ## Install the app
 
-Go to the [Releases page](https://github.com/dgarana/MT12OverlayStudio/releases/latest) and download the installer for your platform:
+Go to the [Releases page](https://github.com/toperc/MT12OverlayStudio/releases/latest) and download the installer for your platform:
 
 | Platform | File |
 |----------|------|
@@ -241,7 +241,7 @@ npm run dist:mac      # macOS DMG (arm64 + x64)
 npm run dist:linux    # Linux AppImage + deb
 ```
 
-Output goes to `release/`. Auto-updates are published via GitHub Releases (`dgarana/MT12OverlayStudio`). The bundled Lua scripts are included as extra resources so **Install to radio** works without internet access.
+Output goes to `release/`. Auto-updates are published via GitHub Releases (`toperc/MT12OverlayStudio`). The bundled Lua scripts are included as extra resources so **Install to radio** works without internet access.
 
 ---
 
