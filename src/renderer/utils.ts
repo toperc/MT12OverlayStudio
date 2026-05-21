@@ -17,13 +17,22 @@ export const HANDLE_CURSORS: Record<HandleId, string> = {
 
 export type ResizePreview = { itemId: string; x: number; y: number; scaleX: number; scaleY: number };
 
+export const BAR_APPEARANCE_DEFAULTS = {
+  trackFillThickness: 68,
+  trackOutlineThickness: 3,
+  centerMarkThickness: 2,
+  cornerRadius: 100,
+};
+
 export type ResizingState = {
   itemId: string;
   handle: HandleId;
-  resizeX: { fixedEnd: number } | null;
-  resizeY: { fixedEnd: number } | null;
-  origX: number; origY: number;
+  fixedLocalX: number | null;
+  fixedLocalY: number | null;
+  origCenterX: number; origCenterY: number;
+  origWidth: number; origHeight: number;
   origScaleX: number; origScaleY: number;
+  rotation: number;
 };
 
 export const defaultSettings: AppSettings = {
@@ -42,34 +51,135 @@ export const defaultSettings: AppSettings = {
 
 export const fallbackMetadata: AppMetadata = {
   sources: ["time", "ch1", "ch2", "ch3", "ch4"],
-  channel_widget_types: ["gauge", "vertical_bar", "bar", "text"],
+  channel_widget_types: ["gauge", "bar", "text"],
   time_widget_types: ["text"],
 };
 
-export const fallbackItem: LayoutItem = {
-  source: "ch1",
-  name: "ch1 1",
-  label: "CH1",
-  widget: "gauge",
-  x: 0.15,
-  y: 0.78,
-  scale_x: 1,
-  scale_y: 1,
-  accent_color: "#ffd25a",
-  negative_color: "#ffaa54",
-  positive_color: "#55beff",
-  text_color: "#ffffff",
-  bg_color: "#141a20",
-  bg_visible: true,
-  outline_color: "#ffffff",
-  outline_visible: true,
-  shadow_visible: true,
+const fallbackBarAppearance = {
+  bar_track_fill_thickness: BAR_APPEARANCE_DEFAULTS.trackFillThickness,
+  bar_track_outline_thickness: BAR_APPEARANCE_DEFAULTS.trackOutlineThickness,
+  bar_center_mark_thickness: BAR_APPEARANCE_DEFAULTS.centerMarkThickness,
+  bar_corner_radius: BAR_APPEARANCE_DEFAULTS.cornerRadius,
 };
+
+export const fallbackLayout: Record<string, LayoutItem> = {
+  item_time_1: {
+    source: "time",
+    name: "Timer",
+    label: "TIME",
+    widget: "text",
+    x: 0.13,
+    y: 0.07,
+    scale_x: 1.15,
+    scale_y: 1.08,
+    rotation: 0,
+    accent_color: "#55beff",
+    negative_color: "#55beff",
+    positive_color: "#55beff",
+    text_color: "#ffffff",
+    bg_color: "#141a20",
+    bg_visible: true,
+    outline_color: "#ffffff",
+    outline_visible: true,
+    shadow_visible: true,
+  },
+  item_ch1_1: {
+    source: "ch1",
+    name: "Steering",
+    label: "STEER",
+    widget: "gauge",
+    x: 0.16,
+    y: 0.76,
+    scale_x: 1.15,
+    scale_y: 1.15,
+    rotation: 0,
+    accent_color: "#ffd25a",
+    negative_color: "#ffaa54",
+    positive_color: "#55beff",
+    text_color: "#ffffff",
+    bg_color: "#141a20",
+    bg_visible: true,
+    outline_color: "#ffffff",
+    outline_visible: true,
+    shadow_visible: true,
+  },
+  item_ch2_1: {
+    source: "ch2",
+    name: "Throttle / brake",
+    label: "THROTTLE",
+    widget: "bar",
+    x: 0.86,
+    y: 0.72,
+    scale_x: 1.75,
+    scale_y: 2.35,
+    rotation: -90,
+    accent_color: "#40d68c",
+    negative_color: "#ff5c5c",
+    positive_color: "#40d68c",
+    text_color: "#ffffff",
+    bg_color: "#141a20",
+    bg_visible: true,
+    outline_color: "#ffffff",
+    outline_visible: true,
+    shadow_visible: true,
+    ...fallbackBarAppearance,
+  },
+  item_ch3_1: {
+    source: "ch3",
+    name: "Aux 1",
+    label: "AUX 1",
+    widget: "bar",
+    x: 0.74,
+    y: 0.08,
+    scale_x: 1.65,
+    scale_y: 1,
+    rotation: 0,
+    accent_color: "#55beff",
+    negative_color: "#ffaa54",
+    positive_color: "#55beff",
+    text_color: "#ffffff",
+    bg_color: "#141a20",
+    bg_visible: true,
+    outline_color: "#ffffff",
+    outline_visible: true,
+    shadow_visible: true,
+    ...fallbackBarAppearance,
+  },
+  item_ch4_1: {
+    source: "ch4",
+    name: "Aux 2",
+    label: "AUX 2",
+    widget: "bar",
+    x: 0.74,
+    y: 0.15,
+    scale_x: 1.65,
+    scale_y: 1,
+    rotation: 0,
+    accent_color: "#ffaa54",
+    negative_color: "#ffaa54",
+    positive_color: "#55beff",
+    text_color: "#ffffff",
+    bg_color: "#141a20",
+    bg_visible: true,
+    outline_color: "#ffffff",
+    outline_visible: true,
+    shadow_visible: true,
+    ...fallbackBarAppearance,
+  },
+};
+
+export const fallbackItem: LayoutItem = fallbackLayout.item_ch1_1;
+
+function fallbackLayoutClone() {
+  return Object.fromEntries(
+    Object.entries(fallbackLayout).map(([id, item]) => [id, { ...item }]),
+  ) as Record<string, LayoutItem>;
+}
 
 export const browserFallbackApi: OverlayApi = {
   metadata: async () => fallbackMetadata,
-  defaultLayout: async () => ({ layout: { item_ch1_1: fallbackItem } }),
-  loadSettings: async () => ({ ...defaultSettings, layout: { item_ch1_1: fallbackItem } }),
+  defaultLayout: async () => ({ layout: fallbackLayoutClone() }),
+  loadSettings: async () => ({ ...defaultSettings, layout: fallbackLayoutClone() }),
   saveSettings: async (settings) => settings,
   chooseCsv: async () => null,
   chooseDirectory: async () => null,
@@ -86,7 +196,7 @@ export const browserFallbackApi: OverlayApi = {
   renderOverlay: async () => ({ frame_count: 0, output_dir: "", video_output: "" }),
   discoverRadios: async () => ({ sources: [] }),
   listRadioLogs: async () => ({ logs: [] }),
-  createWidget: async () => ({ item_id: `item_ch1_${Date.now()}`, item: fallbackItem }),
+  createWidget: async () => ({ item_id: `item_ch1_${Date.now()}`, item: { ...fallbackItem } }),
   discoverFfmpeg: async () => ({ path: null, source: "not found" }),
   downloadFfmpeg: async () => { throw new Error("Not available in browser"); },
   installScripts: async () => { throw new Error("Not available in browser"); },
@@ -111,7 +221,6 @@ export function widgetSize(widget: string) {
     text: [280, 52],
     bar: [220, 48],
     gauge: [250, 250],
-    vertical_bar: [130, 330],
   };
   return sizes[widget] || [180, 60];
 }
@@ -151,18 +260,6 @@ export function colorControlLabel(item: LayoutItem, key: ColorKey): string | nul
       text_color: null,
       bg_color: "colors.gaugeFill",
       outline_color: "colors.gaugeOutline",
-    };
-    return labels[key];
-  }
-
-  if (item.widget === "vertical_bar") {
-    const labels: Record<ColorKey, string | null> = {
-      accent_color: null,
-      negative_color: "colors.negativeFill",
-      positive_color: "colors.positiveFill",
-      text_color: "colors.centerMark",
-      bg_color: "colors.trackFill",
-      outline_color: "colors.trackOutline",
     };
     return labels[key];
   }

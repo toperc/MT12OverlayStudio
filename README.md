@@ -52,7 +52,7 @@ Visual overlay editor. Drag widgets onto a live preview of your frame, resize th
 
 ![Layout editor](docs/screenshots/layout.png)
 
-- **Widget types** — `gauge` (rotating spoke), `vertical_bar` (throttle/brake), `bar` (horizontal channel), `text` (value label or timer)
+- **Widget types** — `gauge` (rotating spoke), `bar` (horizontal or vertical via rotation), `text` (value label or timer)
 - **Sources** — `time` (session clock) plus any channel present in the CSV (`ch1`, `ch2`, … `chN`)
 - **Preview timeline** — scrub through the session to see live animated widget values
 - **Zoom & pan** — mouse wheel to zoom, drag the background to pan; zoom controls in the timeline bar

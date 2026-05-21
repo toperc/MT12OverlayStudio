@@ -26,7 +26,6 @@ import {
   clamp,
   defaultSettings,
   fallbackMetadata,
-  HANDLE_CURSORS,
   interpolateLocalState,
   itemBounds,
   numeric,
@@ -288,8 +287,9 @@ function App() {
     setBusy(true);
     setProgress(null);
     try {
-      await api.saveSettings(settings);
-      const result = await api.renderOverlay(settings as Record<string, unknown>);
+      const saved = await api.saveSettings(settings);
+      setSettings((current) => ({ ...current, ...saved }));
+      const result = await api.renderOverlay(saved as Record<string, unknown>);
       pushLog(t("logs.rendered", { count: result.frame_count }));
     } catch (error) {
       pushLog(error instanceof Error ? error.message : String(error));
@@ -418,12 +418,65 @@ function App() {
     return { x, y, frameWidth: outputWidth, frameHeight: outputHeight };
   }
 
+  function rotatedPoint(x: number, y: number, cx: number, cy: number, degrees: number) {
+    const radians = (degrees * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const dx = x - cx;
+    const dy = y - cy;
+    return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+  }
+
+  function rotateOffset(x: number, y: number, degrees: number) {
+    const radians = (degrees * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    return { x: x * cos - y * sin, y: x * sin + y * cos };
+  }
+
+  function pointInItemBounds(x: number, y: number, item: LayoutItem, bounds: [number, number, number, number]) {
+    const [left, top, right, bottom] = bounds;
+    const cx = (left + right) / 2;
+    const cy = (top + bottom) / 2;
+    const local = rotatedPoint(x, y, cx, cy, -(item.rotation ?? 0));
+    return left <= local.x && local.x <= right && top <= local.y && local.y <= bottom;
+  }
+
+  function resizeHandlePoints(item: LayoutItem, bounds: [number, number, number, number]): [HandleId, number, number][] {
+    const [l, t, r, b] = bounds;
+    const mx = (l + r) / 2;
+    const my = (t + b) / 2;
+    const rotation = item.rotation ?? 0;
+    const point = (id: HandleId, x: number, y: number): [HandleId, number, number] => {
+      const rotated = rotatedPoint(x, y, mx, my, rotation);
+      return [id, rotated.x, rotated.y];
+    };
+    return [
+      point("nw", l, t), point("n", mx, t), point("ne", r, t),
+      point("w",  l, my),                 point("e",  r, my),
+      point("sw", l, b), point("s", mx, b), point("se", r, b),
+    ];
+  }
+
+  function resizeCursor(handle: HandleId, rotation = 0) {
+    const baseAxis: Record<HandleId, number> = {
+      e: 0, w: 0,
+      n: 90, s: 90,
+      nw: 45, se: 45,
+      ne: 135, sw: 135,
+    };
+    const axis = ((baseAxis[handle] + rotation) % 180 + 180) % 180;
+    if (axis < 22.5 || axis >= 157.5) return "ew-resize";
+    if (axis < 67.5) return "nwse-resize";
+    if (axis < 112.5) return "ns-resize";
+    return "nesw-resize";
+  }
+
   function locateItemAt(x: number, y: number) {
     for (const [id, item] of [...layoutItems].reverse()) {
       const [left, top, right, bottom] = itemBounds(item, outputWidth, outputHeight);
-      if (left <= x && x <= right && top <= y && y <= bottom) {
-        return { id, bounds: [left, top, right, bottom] as [number, number, number, number] };
-      }
+      const bounds = [left, top, right, bottom] as [number, number, number, number];
+      if (pointInItemBounds(x, y, item, bounds)) return { id, bounds };
     }
     return null;
   }
@@ -485,19 +538,12 @@ function App() {
     if (!selectedItemId || !previewStageRef.current) return null;
     const item = settings.layout[selectedItemId];
     if (!item) return null;
-    const [l, t, r, b] = boundsForPreviewItem(selectedItemId, item);
-    const mx = (l + r) / 2;
-    const my = (t + b) / 2;
+    const bounds = boundsForPreviewItem(selectedItemId, item);
     const stageRect = previewStageRef.current.getBoundingClientRect();
     const hit = 10 * (outputWidth / (stageRect.width / previewZoom));
 
-    const pts: [HandleId, number, number][] = [
-      ["nw", l, t], ["n", mx, t], ["ne", r, t],
-      ["w",  l, my],               ["e",  r, my],
-      ["sw", l, b], ["s", mx, b], ["se", r, b],
-    ];
-    for (const [id, hx, hy] of pts) {
-      if (Math.abs(frameX - hx) <= hit && Math.abs(frameY - hy) <= hit) return id;
+    for (const [id, hx, hy] of resizeHandlePoints(item, bounds)) {
+      if (Math.hypot(frameX - hx, frameY - hy) <= hit) return id;
     }
     return null;
   }
@@ -536,13 +582,19 @@ function App() {
       const item = settings.layout[selectedItemId];
       if (item) {
         const [l, t, r, b] = boundsForPreviewItem(selectedItemId, item);
+        const width = r - l;
+        const height = b - t;
         resizingRef.current = {
           itemId: selectedItemId,
           handle,
-          resizeX: (handle === "n" || handle === "s") ? null : { fixedEnd: handle.includes("w") ? r : l },
-          resizeY: (handle === "e" || handle === "w") ? null : { fixedEnd: handle.includes("n") ? b : t },
-          origX: item.x, origY: item.y,
+          fixedLocalX: (handle === "n" || handle === "s") ? null : handle.includes("w") ? width / 2 : -width / 2,
+          fixedLocalY: (handle === "e" || handle === "w") ? null : handle.includes("n") ? height / 2 : -height / 2,
+          origCenterX: (l + r) / 2,
+          origCenterY: (t + b) / 2,
+          origWidth: width,
+          origHeight: height,
           origScaleX: item.scale_x, origScaleY: item.scale_y,
+          rotation: item.rotation ?? 0,
         };
         event.currentTarget.setPointerCapture(event.pointerId);
         return;
@@ -569,56 +621,68 @@ function App() {
     if (resizingRef.current) {
       const point = previewPointerToFrame(event);
       if (!point) return;
-      const { itemId, handle, resizeX, resizeY, origX, origY, origScaleX, origScaleY } = resizingRef.current;
+      const {
+        itemId,
+        handle,
+        fixedLocalX,
+        fixedLocalY,
+        origCenterX,
+        origCenterY,
+        origWidth,
+        origHeight,
+        origScaleX,
+        origScaleY,
+        rotation,
+      } = resizingRef.current;
       const item = settings.layout[itemId];
       if (!item) return;
       const [baseW, baseH] = widgetSize(item.widget);
       const sc = Math.max(0.01, Math.min(outputWidth / 1920, outputHeight / 1080));
       const MIN_W = 32, MIN_H = 24;
 
-      let newX = origX, newScaleX = origScaleX;
-      let newY = origY, newScaleY = origScaleY;
-      const isCornerResize = handle.length === 2 && resizeX && resizeY;
+      const localPointer = rotatedPoint(point.x, point.y, origCenterX, origCenterY, -rotation);
+      let movingLocalX = localPointer.x - origCenterX;
+      let movingLocalY = localPointer.y - origCenterY;
+      let nextWidth = origWidth;
+      let nextHeight = origHeight;
+      let centerLocalX = 0;
+      let centerLocalY = 0;
 
-      if (isCornerResize) {
-        const px = clamp(point.x, 0, outputWidth);
-        const py = clamp(point.y, 0, outputHeight);
-        const originalW = Math.max(MIN_W, baseW * sc * origScaleX);
-        const originalH = Math.max(MIN_H, baseH * sc * origScaleY);
-        const minFactor = Math.max(0.2 / origScaleX, 0.2 / origScaleY, MIN_W / originalW, MIN_H / originalH);
+      const resizingX = fixedLocalX !== null;
+      const resizingY = fixedLocalY !== null;
+      const isCornerResize = handle.length === 2 && resizingX && resizingY;
+
+      if (isCornerResize && fixedLocalX !== null && fixedLocalY !== null) {
+        const rawWidth = Math.abs(movingLocalX - fixedLocalX);
+        const rawHeight = Math.abs(movingLocalY - fixedLocalY);
+        const minFactor = Math.max(0.2 / origScaleX, 0.2 / origScaleY, MIN_W / origWidth, MIN_H / origHeight);
         const maxFactor = Math.min(12 / origScaleX, 12 / origScaleY);
-        const factor = clamp(
-          Math.max(Math.abs(px - resizeX.fixedEnd) / originalW, Math.abs(py - resizeY.fixedEnd) / originalH),
-          minFactor,
-          maxFactor,
-        );
-        const signX = handle.includes("w") ? -1 : 1;
-        const signY = handle.includes("n") ? -1 : 1;
-        const w = originalW * factor;
-        const h = originalH * factor;
-        const movingX = resizeX.fixedEnd + signX * w;
-        const movingY = resizeY.fixedEnd + signY * h;
-        newX = clamp(((resizeX.fixedEnd + movingX) / 2) / outputWidth, 0.01, 0.99);
-        newY = clamp(((resizeY.fixedEnd + movingY) / 2) / outputHeight, 0.01, 0.99);
-        newScaleX = clamp(origScaleX * factor, 0.2, 12);
-        newScaleY = clamp(origScaleY * factor, 0.2, 12);
-        scheduleResizePreview({ itemId, x: newX, y: newY, scaleX: newScaleX, scaleY: newScaleY });
-        return;
+        const factor = clamp(Math.max(rawWidth / origWidth, rawHeight / origHeight), minFactor, maxFactor);
+        nextWidth = origWidth * factor;
+        nextHeight = origHeight * factor;
+        movingLocalX = fixedLocalX + (handle.includes("w") ? -nextWidth : nextWidth);
+        movingLocalY = fixedLocalY + (handle.includes("n") ? -nextHeight : nextHeight);
+        centerLocalX = (fixedLocalX + movingLocalX) / 2;
+        centerLocalY = (fixedLocalY + movingLocalY) / 2;
+      } else {
+        if (fixedLocalX !== null) {
+          nextWidth = clamp(Math.abs(movingLocalX - fixedLocalX), MIN_W, baseW * sc * 12);
+          movingLocalX = fixedLocalX + (handle.includes("w") ? -nextWidth : nextWidth);
+          centerLocalX = (fixedLocalX + movingLocalX) / 2;
+        }
+
+        if (fixedLocalY !== null) {
+          nextHeight = clamp(Math.abs(movingLocalY - fixedLocalY), MIN_H, baseH * sc * 12);
+          movingLocalY = fixedLocalY + (handle.includes("n") ? -nextHeight : nextHeight);
+          centerLocalY = (fixedLocalY + movingLocalY) / 2;
+        }
       }
 
-      if (resizeX) {
-        const px = clamp(point.x, 0, outputWidth);
-        const w = Math.max(MIN_W, Math.abs(px - resizeX.fixedEnd));
-        newX = clamp(((px + resizeX.fixedEnd) / 2) / outputWidth, 0.01, 0.99);
-        newScaleX = clamp(w / (baseW * sc), 0.2, 12);
-      }
-
-      if (resizeY) {
-        const py = clamp(point.y, 0, outputHeight);
-        const h = Math.max(MIN_H, Math.abs(py - resizeY.fixedEnd));
-        newY = clamp(((py + resizeY.fixedEnd) / 2) / outputHeight, 0.01, 0.99);
-        newScaleY = clamp(h / (baseH * sc), 0.2, 12);
-      }
+      const centerOffset = rotateOffset(centerLocalX, centerLocalY, rotation);
+      const newX = clamp((origCenterX + centerOffset.x) / outputWidth, 0.01, 0.99);
+      const newY = clamp((origCenterY + centerOffset.y) / outputHeight, 0.01, 0.99);
+      const newScaleX = clamp(nextWidth / (baseW * sc), 0.2, 12);
+      const newScaleY = clamp(nextHeight / (baseH * sc), 0.2, 12);
 
       scheduleResizePreview({ itemId, x: newX, y: newY, scaleX: newScaleX, scaleY: newScaleY });
       return;
@@ -649,7 +713,8 @@ function App() {
     if (point) {
       const handle = locateResizeHandle(point.x, point.y);
       if (handle) {
-        setPreviewCursor(HANDLE_CURSORS[handle]);
+        const item = selectedItemId ? settings.layout[selectedItemId] : undefined;
+        setPreviewCursor(resizeCursor(handle, item?.rotation ?? 0));
         return;
       }
       const found = summary && layoutItems.length ? locateItemAt(point.x, point.y) : null;
