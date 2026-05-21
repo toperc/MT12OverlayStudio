@@ -5,6 +5,7 @@ import type { AppMetadata, AppSettings, CsvSummary, FrameState, LayoutItem } fro
 import type { RunningStats } from "../../shared/widgetDraw";
 import { WidgetCanvas } from "../components/WidgetCanvas";
 import {
+  BAR_APPEARANCE_DEFAULTS,
   clamp,
   colorControlLabel,
   itemName,
@@ -93,6 +94,71 @@ export function LayoutView(props: LayoutViewProps) {
     onGoToSource,
   } = props;
 
+  const barNumberControl = (
+    key: "bar_track_fill_thickness" | "bar_track_outline_thickness" | "bar_center_mark_thickness" | "bar_corner_radius",
+    labelKey: string,
+    value: number,
+    min: number,
+    max: number,
+    step: number,
+  ) => {
+    const label = String(t(labelKey));
+    const update = (raw: string) => onUpdateSelectedItem(key, clamp(Number(raw), min, max) as LayoutItem[typeof key]);
+    return (
+      <div className="prop-row" key={key}>
+        <span className="prop-label" title={label}>{label}</span>
+        <input
+          type="range"
+          className="prop-slider"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => update(e.target.value)}
+        />
+        <input
+          type="number"
+          className="prop-number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => update(e.target.value)}
+        />
+      </div>
+    );
+  };
+
+  const colorControl = (item: LayoutItem, key: ColorKey, label: string) => {
+    const isOff =
+      (key === "bg_color" && item.bg_visible === false) ||
+      (key === "outline_color" && item.outline_visible === false);
+    const hasToggle = key === "bg_color" || key === "outline_color";
+    const toggleKey = key === "bg_color" ? "bg_visible" : "outline_visible";
+    return (
+      <div key={key} className={`color-cell${isOff ? " off" : ""}`}>
+        <span className="color-cell-label" title={label}>{label}</span>
+        <div className="color-cell-top">
+          {hasToggle && (
+            <input type="checkbox" className="color-cell-toggle"
+              checked={!isOff}
+              onChange={(e) => onUpdateSelectedItem(toggleKey as keyof LayoutItem, e.target.checked as LayoutItem[keyof LayoutItem])}
+            />
+          )}
+          <div className="color-cell-swatch-wrap"
+            style={{ "--swatch-color": String(item[key as keyof LayoutItem]) } as React.CSSProperties}
+          >
+            <input type="color" className="color-cell-swatch"
+              disabled={isOff}
+              value={String(item[key as keyof LayoutItem])}
+              onChange={(e) => onUpdateSelectedItem(key as keyof LayoutItem, e.target.value as never)}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const durationMs = summary?.duration_ms ?? 0;
 
   return (
@@ -136,7 +202,7 @@ export function LayoutView(props: LayoutViewProps) {
                   return (
                     <div
                       key={id}
-                      className={`widget-chrome${sel ? " selected" : ""}`}
+                      className="widget-chrome"
                       style={{
                         left: `${(l / outputWidth) * 100}%`,
                         top: `${(t / outputHeight) * 100}%`,
@@ -145,9 +211,14 @@ export function LayoutView(props: LayoutViewProps) {
                       }}
                     >
                       <span className="widget-name">{itemName(id, item)}</span>
-                      {sel && (["nw","n","ne","e","se","s","sw","w"] as HandleId[]).map((h) => (
-                        <div key={h} className={`rh rh-${h}`} />
-                      ))}
+                      <div
+                        className={`widget-frame${sel ? " selected" : ""}`}
+                        style={{ transform: `rotate(${item.rotation ?? 0}deg)` }}
+                      >
+                        {sel && (["nw","n","ne","e","se","s","sw","w"] as HandleId[]).map((h) => (
+                          <div key={h} className={`rh rh-${h}`} />
+                        ))}
+                      </div>
                     </div>
                   );
                 })}
@@ -344,6 +415,16 @@ export function LayoutView(props: LayoutViewProps) {
                         <input type="number" className="prop-number" min={1} value={pxH}
                           onChange={(e) => updateH(Number(e.target.value))} />
                       </div>
+                      <div className="prop-subgroup-label">{t("layout.subgroupRotation")}</div>
+                      <div className="prop-row">
+                        <span className="prop-label">{t("layout.rotation")}</span>
+                        <input type="range" className="prop-slider" min={-180} max={180} step={1}
+                          value={selectedItem.rotation ?? 0}
+                          onChange={(e) => onUpdateSelectedNumber("rotation", e.target.value, -180, 180)} />
+                        <input type="number" className="prop-number" min={-180} max={180} step={1}
+                          value={Math.round(selectedItem.rotation ?? 0)}
+                          onChange={(e) => onUpdateSelectedNumber("rotation", e.target.value, -180, 180)} />
+                      </div>
                     </>
                   );
                 })()}
@@ -361,40 +442,69 @@ export function LayoutView(props: LayoutViewProps) {
                 {t("layout.appearance")}
               </summary>
               <div className="section-body">
-                <div className="color-grid">
-                  {(["accent_color","negative_color","positive_color","text_color","bg_color","outline_color"] as ColorKey[])
-                    .map((key) => [key, colorControlLabel(selectedItem, key)] as const)
-                    .filter((entry): entry is readonly [ColorKey, string] => entry[1] !== null)
-                    .map(([key, labelKey]) => {
-                      const isOff =
-                        (key === "bg_color" && selectedItem.bg_visible === false) ||
-                        (key === "outline_color" && selectedItem.outline_visible === false);
-                      const hasToggle = key === "bg_color" || key === "outline_color";
-                      const toggleKey = key === "bg_color" ? "bg_visible" : "outline_visible";
-                      return (
-                        <div key={key} className={`color-cell${isOff ? " off" : ""}`}>
-                          <span className="color-cell-label">{t(labelKey)}</span>
-                          <div className="color-cell-top">
-                            {hasToggle && (
-                              <input type="checkbox" className="color-cell-toggle"
-                                checked={!isOff}
-                                onChange={(e) => onUpdateSelectedItem(toggleKey as keyof LayoutItem, e.target.checked as LayoutItem[keyof LayoutItem])}
-                              />
-                            )}
-                            <div className="color-cell-swatch-wrap"
-                              style={{ "--swatch-color": String(selectedItem[key as keyof LayoutItem]) } as React.CSSProperties}
-                            >
-                              <input type="color" className="color-cell-swatch"
-                                disabled={isOff}
-                                value={String(selectedItem[key as keyof LayoutItem])}
-                                onChange={(e) => onUpdateSelectedItem(key as keyof LayoutItem, e.target.value as never)}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
+                {selectedItem.widget === "bar" ? (
+                  <div className="bar-appearance-groups">
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("layout.subgroupBarFills")}</div>
+                      {colorControl(selectedItem, "negative_color", String(t("colors.negativeFill")))}
+                      {colorControl(selectedItem, "positive_color", String(t("colors.positiveFill")))}
+                    </div>
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("colors.centerMark")}</div>
+                      {colorControl(selectedItem, "text_color", String(t("layout.controlColor")))}
+                      {barNumberControl(
+                        "bar_center_mark_thickness",
+                        "layout.controlThickness",
+                        selectedItem.bar_center_mark_thickness ?? BAR_APPEARANCE_DEFAULTS.centerMarkThickness,
+                        0,
+                        24,
+                        1,
+                      )}
+                    </div>
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("colors.trackFill")}</div>
+                      {colorControl(selectedItem, "bg_color", String(t("layout.controlColor")))}
+                      {barNumberControl(
+                        "bar_track_fill_thickness",
+                        "layout.controlThicknessPercent",
+                        selectedItem.bar_track_fill_thickness ?? BAR_APPEARANCE_DEFAULTS.trackFillThickness,
+                        5,
+                        100,
+                        1,
+                      )}
+                    </div>
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("colors.trackOutline")}</div>
+                      {colorControl(selectedItem, "outline_color", String(t("layout.controlColor")))}
+                      {barNumberControl(
+                        "bar_track_outline_thickness",
+                        "layout.controlThickness",
+                        selectedItem.bar_track_outline_thickness ?? BAR_APPEARANCE_DEFAULTS.trackOutlineThickness,
+                        0,
+                        24,
+                        1,
+                      )}
+                    </div>
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("layout.subgroupBarAppearance")}</div>
+                      {barNumberControl(
+                        "bar_corner_radius",
+                        "layout.barCornerRadius",
+                        selectedItem.bar_corner_radius ?? BAR_APPEARANCE_DEFAULTS.cornerRadius,
+                        0,
+                        100,
+                        1,
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="color-grid">
+                    {(["accent_color","negative_color","positive_color","text_color","bg_color","outline_color"] as ColorKey[])
+                      .map((key) => [key, colorControlLabel(selectedItem, key)] as const)
+                      .filter((entry): entry is readonly [ColorKey, string] => entry[1] !== null)
+                      .map(([key, labelKey]) => colorControl(selectedItem, key, String(t(labelKey))))}
+                  </div>
+                )}
               </div>
             </details>
 

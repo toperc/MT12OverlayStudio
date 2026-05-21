@@ -111,6 +111,15 @@ function rgba(hex: string, alpha: number): string {
 
 /** CSS: background-color: ${bg_color}aa  → 0xAA/0xFF ≈ 0.6667 */
 const BG_ALPHA = 170 / 255;
+const BAR_TRACK_FILL_THICKNESS = 68;
+const BAR_TRACK_OUTLINE_THICKNESS = 3;
+const BAR_CENTER_MARK_THICKNESS = 2;
+const BAR_CORNER_RADIUS = 100;
+
+function optionalNumber(value: number | undefined, fallback: number, low: number, high: number): number {
+  const parsed = Number(value ?? fallback);
+  return clamp(Number.isFinite(parsed) ? parsed : fallback, low, high);
+}
 
 function formatValue(value: number): string {
   const v = Math.round(value);
@@ -122,7 +131,6 @@ function widgetBaseSize(widget: string): [number, number] {
     text:         [280, 52],
     bar:          [220, 48],
     gauge:        [250, 250],
-    vertical_bar: [130, 330],
   };
   return sizes[widget] ?? [180, 60];
 }
@@ -235,76 +243,20 @@ function drawGauge(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: 
 
 }
 
-// ─── Vertical bar ─────────────────────────────────────────────────────────────
-
-function drawVerticalBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: number, sc: number) {
-  const trackW = 0.68 * w;
-  const trackH = 0.90 * h;
-  const trackX = (w - trackW) / 2;
-  const trackY = (h - trackH) / 2;
-  const bw = Math.max(1, 3 * sc);
-  const innerInset = bw;
-  const fillInset = 8 * sc;
-
-  if (item.shadow_visible !== false) {
-    ctx.shadowColor = "rgba(0,0,0,0.25)";
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 10 * sc;
-    ctx.shadowBlur = 28 * sc;
-  }
-
-  rrect(ctx, trackX + bw / 2, trackY + bw / 2, trackW - bw, trackH - bw, trackW / 2);
-  if (item.bg_visible !== false) {
-    ctx.fillStyle = rgba(item.bg_color, BG_ALPHA);
-    ctx.fill();
-  }
-  ctx.shadowColor = "transparent";
-
-  ctx.save();
-  rrect(ctx, trackX + innerInset, trackY + innerInset, trackW - innerInset * 2, trackH - innerInset * 2, (trackW - innerInset * 2) / 2);
-  ctx.clip();
-
-  const innerH = trackH - innerInset * 2;
-  const midY = trackY + innerInset + innerH / 2;
-  const fillH = Math.abs(value) * (innerH / 2);
-  const fillColor = value >= 0 ? item.positive_color : item.negative_color;
-  if (fillH > 0.5) {
-    rrect(
-      ctx,
-      trackX + innerInset + fillInset,
-      value >= 0 ? midY - fillH : midY,
-      trackW - innerInset * 2 - fillInset * 2,
-      fillH,
-      (trackW - innerInset * 2 - fillInset * 2) / 2,
-    );
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-  }
-
-  // Center tick line (geometric guide, always visible)
-  ctx.fillStyle = item.text_color;
-  ctx.fillRect(trackX + innerInset + fillInset, midY - sc, trackW - innerInset * 2 - fillInset * 2, Math.max(1, 2 * sc));
-
-  ctx.restore();
-
-  if (item.outline_visible !== false) {
-    rrect(ctx, trackX + bw / 2, trackY + bw / 2, trackW - bw, trackH - bw, trackW / 2);
-    ctx.strokeStyle = item.outline_color;
-    ctx.lineWidth = bw;
-    ctx.stroke();
-  }
-}
-
-// ─── Bar (horizontal mirror of vertical_bar) ─────────────────────────────────
+// ─── Bar ─────────────────────────────────────────────────────────────────────
 
 function drawBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: number, sc: number) {
   const trackW = 0.90 * w;
-  const trackH = 0.68 * h;
+  const trackFillPct = optionalNumber(item.bar_track_fill_thickness, BAR_TRACK_FILL_THICKNESS, 5, 100) / 100;
+  const trackH = Math.max(1, trackFillPct * h);
   const trackX = (w - trackW) / 2;
   const trackY = (h - trackH) / 2;
-  const bw = Math.max(1, 3 * sc);
-  const innerInset = bw;
-  const fillInset = 8 * sc;
+  const outlineW = item.outline_visible !== false
+    ? Math.min(optionalNumber(item.bar_track_outline_thickness, BAR_TRACK_OUTLINE_THICKNESS, 0, 24) * sc, trackW / 2, trackH / 2)
+    : 0;
+  const innerInset = outlineW;
+  const cornerPct = optionalNumber(item.bar_corner_radius, BAR_CORNER_RADIUS, 0, 100) / 100;
+  const outerRadius = (trackH / 2) * cornerPct;
 
   if (item.shadow_visible !== false) {
     ctx.shadowColor = "rgba(0,0,0,0.25)";
@@ -313,7 +265,7 @@ function drawBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: nu
     ctx.shadowBlur = 28 * sc;
   }
 
-  rrect(ctx, trackX + bw / 2, trackY + bw / 2, trackW - bw, trackH - bw, trackH / 2);
+  rrect(ctx, trackX + outlineW / 2, trackY + outlineW / 2, trackW - outlineW, trackH - outlineW, outerRadius);
   if (item.bg_visible !== false) {
     ctx.fillStyle = rgba(item.bg_color, BG_ALPHA);
     ctx.fill();
@@ -322,36 +274,45 @@ function drawBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: nu
 
   // Clip fill to the inner track area
   ctx.save();
-  rrect(ctx, trackX + innerInset, trackY + innerInset, trackW - innerInset * 2, trackH - innerInset * 2, (trackH - innerInset * 2) / 2);
+  const innerW = Math.max(0, trackW - innerInset * 2);
+  const innerH = Math.max(0, trackH - innerInset * 2);
+  const innerRadius = (innerH / 2) * cornerPct;
+  rrect(ctx, trackX + innerInset, trackY + innerInset, innerW, innerH, innerRadius);
   ctx.clip();
 
-  const innerW = trackW - innerInset * 2;
   const midX = trackX + innerInset + innerW / 2;
   const fillW = Math.abs(value) * (innerW / 2);
+  const fillInset = Math.min(8 * sc, Math.max(0, (innerH - sc) / 2));
+  const fillH = Math.max(0, innerH - fillInset * 2);
+  const fillY = trackY + innerInset + fillInset;
+  const fillRadius = (fillH / 2) * cornerPct;
   const fillColor = value >= 0 ? item.positive_color : item.negative_color;
-  if (fillW > 0.5) {
+  if (fillW > 0.5 && fillH > 0.5) {
     rrect(
       ctx,
       value >= 0 ? midX : midX - fillW,
-      trackY + innerInset + fillInset,
+      fillY,
       fillW,
-      trackH - innerInset * 2 - fillInset * 2,
-      (trackH - innerInset * 2 - fillInset * 2) / 2,
+      fillH,
+      fillRadius,
     );
     ctx.fillStyle = fillColor;
     ctx.fill();
   }
 
   // Center tick line (geometric guide, always visible)
-  ctx.fillStyle = item.text_color;
-  ctx.fillRect(midX - sc, trackY + innerInset + fillInset, Math.max(1, 2 * sc), trackH - innerInset * 2 - fillInset * 2);
+  const centerMarkW = optionalNumber(item.bar_center_mark_thickness, BAR_CENTER_MARK_THICKNESS, 0, 24) * sc;
+  if (centerMarkW > 0 && fillH > 0.5) {
+    ctx.fillStyle = item.text_color;
+    ctx.fillRect(midX - centerMarkW / 2, fillY, centerMarkW, fillH);
+  }
 
   ctx.restore();
 
-  if (item.outline_visible !== false) {
-    rrect(ctx, trackX + bw / 2, trackY + bw / 2, trackW - bw, trackH - bw, trackH / 2);
+  if (item.outline_visible !== false && outlineW > 0) {
+    rrect(ctx, trackX + outlineW / 2, trackY + outlineW / 2, trackW - outlineW, trackH - outlineW, outerRadius);
     ctx.strokeStyle = item.outline_color;
-    ctx.lineWidth = bw;
+    ctx.lineWidth = outlineW;
     ctx.stroke();
   }
 }
@@ -390,8 +351,12 @@ function drawWidget(
   const h = bottom - top;
   const sc = clamp(Math.min(fw / 1920, fh / 1080), 0.1, 8);
 
+  const rotation = (optionalNumber(item.rotation, 0, -180, 180) * Math.PI) / 180;
+
   ctx.save();
-  ctx.translate(left, top);
+  ctx.translate(left + w / 2, top + h / 2);
+  if (rotation !== 0) ctx.rotate(rotation);
+  ctx.translate(-w / 2, -h / 2);
   drawBackground(ctx, w, h, item, sc);
 
   if (item.source === "time") {
@@ -404,7 +369,6 @@ function drawWidget(
     const norm = clamp(v / normDiv, -1, 1);
     switch (item.widget) {
       case "gauge":        drawGauge(ctx, item, norm, w, h, sc);       break;
-      case "vertical_bar": drawVerticalBar(ctx, item, norm, w, h, sc); break;
       case "bar":          drawBar(ctx, item, norm, w, h, sc);         break;
       default:             drawTextWidget(ctx, item, v, w, h, sc);     break;
     }

@@ -622,12 +622,18 @@ p {
   position: absolute;
 }
 
-.widget-chrome.selected {
+.widget-frame {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+}
+
+.widget-frame.selected {
   outline: 2px dashed #ffd25a;
   outline-offset: 4px;
 }
 
-.preview.draggable:active .widget-chrome.selected {
+.preview.draggable:active .widget-frame.selected {
   outline-style: solid;
   box-shadow: 0 0 0 4px rgba(255, 210, 90, 0.16), 0 16px 34px rgba(0, 0, 0, 0.34);
 }
@@ -1130,6 +1136,32 @@ p {
   accent-color: #4a7fa5;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+.bar-appearance-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bar-appearance-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bar-appearance-group + .bar-appearance-group {
+  border-top: 1px solid #1e2c36;
+  padding-top: 6px;
+}
+
+.bar-appearance-heading {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4a6070;
+  margin-bottom: 1px;
 }
 
 .wrap {

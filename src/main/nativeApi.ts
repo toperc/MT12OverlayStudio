@@ -25,8 +25,16 @@ const APP_NAME = "MT12OverlayStudio";
 const SETTINGS_FILENAME = "overlay_ui_settings.json";
 const DEFAULT_SOURCES = ["time", "ch1", "ch2", "ch3", "ch4"];
 const TIME_SOURCE = "time";
-const CHANNEL_WIDGET_TYPES = ["gauge", "vertical_bar", "bar", "text"];
+const CHANNEL_WIDGET_TYPES = ["gauge", "bar", "text"];
 const TIME_WIDGET_TYPES = ["text"];
+const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_X = 330 / 220;
+const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_Y = 130 / 48;
+const BAR_APPEARANCE_DEFAULTS = {
+  bar_track_fill_thickness: 68,
+  bar_track_outline_thickness: 3,
+  bar_center_mark_thickness: 2,
+  bar_corner_radius: 100,
+};
 
 function clamp(value: number, low: number, high: number) {
   if (!Number.isFinite(value)) return low;
@@ -55,13 +63,14 @@ function defaultItemForSource(source: string, itemId: string) {
   const defaults: Record<string, Record<string, unknown>> = {
     item_time_1: {
       source: "time",
-      name: "time 1",
+      name: "Timer",
       label: "TIME",
       widget: "text",
-      x: 0.14,
-      y: 0.08,
-      scale_x: 1,
-      scale_y: 1,
+      x: 0.13,
+      y: 0.07,
+      scale_x: 1.15,
+      scale_y: 1.08,
+      rotation: 0,
       accent_color: "#55beff",
       negative_color: "#55beff",
       positive_color: "#55beff",
@@ -74,13 +83,14 @@ function defaultItemForSource(source: string, itemId: string) {
     },
     item_ch1_1: {
       source: "ch1",
-      name: "ch1 1",
-      label: "CH1",
+      name: "Steering",
+      label: "STEER",
       widget: "gauge",
-      x: 0.15,
-      y: 0.78,
-      scale_x: 1,
-      scale_y: 1,
+      x: 0.16,
+      y: 0.76,
+      scale_x: 1.15,
+      scale_y: 1.15,
+      rotation: 0,
       accent_color: "#ffd25a",
       negative_color: "#ffaa54",
       positive_color: "#55beff",
@@ -93,13 +103,14 @@ function defaultItemForSource(source: string, itemId: string) {
     },
     item_ch2_1: {
       source: "ch2",
-      name: "ch2 1",
-      label: "CH2",
-      widget: "vertical_bar",
-      x: 0.93,
-      y: 0.68,
-      scale_x: 1,
-      scale_y: 1,
+      name: "Throttle / brake",
+      label: "THROTTLE",
+      widget: "bar",
+      x: 0.86,
+      y: 0.72,
+      scale_x: 1.75,
+      scale_y: 2.35,
+      rotation: -90,
       accent_color: "#40d68c",
       negative_color: "#ff5c5c",
       positive_color: "#40d68c",
@@ -109,16 +120,18 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
+      ...BAR_APPEARANCE_DEFAULTS,
     },
     item_ch3_1: {
       source: "ch3",
-      name: "ch3 1",
-      label: "CH3",
+      name: "Aux 1",
+      label: "AUX 1",
       widget: "bar",
-      x: 0.84,
-      y: 0.13,
-      scale_x: 1,
+      x: 0.74,
+      y: 0.08,
+      scale_x: 1.65,
       scale_y: 1,
+      rotation: 0,
       accent_color: "#55beff",
       negative_color: "#ffaa54",
       positive_color: "#55beff",
@@ -128,16 +141,18 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
+      ...BAR_APPEARANCE_DEFAULTS,
     },
     item_ch4_1: {
       source: "ch4",
-      name: "ch4 1",
-      label: "CH4",
+      name: "Aux 2",
+      label: "AUX 2",
       widget: "bar",
-      x: 0.84,
-      y: 0.21,
-      scale_x: 1,
+      x: 0.74,
+      y: 0.15,
+      scale_x: 1.65,
       scale_y: 1,
+      rotation: 0,
       accent_color: "#ffaa54",
       negative_color: "#ffaa54",
       positive_color: "#55beff",
@@ -147,6 +162,7 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
+      ...BAR_APPEARANCE_DEFAULTS,
     },
   };
   if (defaults[itemId]) return { ...defaults[itemId] };
@@ -160,6 +176,7 @@ function defaultItemForSource(source: string, itemId: string) {
     y: 0.5,
     scale_x: 1,
     scale_y: 1,
+    rotation: 0,
     accent_color: "#55beff",
     negative_color: "#ffaa54",
     positive_color: "#55beff",
@@ -171,7 +188,10 @@ function defaultItemForSource(source: string, itemId: string) {
     shadow_visible: true,
   };
   if (source === "ch2") {
-    base.widget = "vertical_bar";
+    base.widget = "bar";
+    base.scale_x = LEGACY_VERTICAL_BAR_TO_BAR_SCALE_X;
+    base.scale_y = LEGACY_VERTICAL_BAR_TO_BAR_SCALE_Y;
+    base.rotation = -90;
     base.accent_color = "#40d68c";
     base.negative_color = "#ff5c5c";
     base.positive_color = "#40d68c";
@@ -184,7 +204,7 @@ function defaultItemForSource(source: string, itemId: string) {
     base.negative_color = "#55beff";
     base.positive_color = "#55beff";
   }
-  return base;
+  return base.widget === "bar" ? { ...base, ...BAR_APPEARANCE_DEFAULTS } : base;
 }
 
 function defaultLayout() {
@@ -210,17 +230,23 @@ function sanitizeLayout(layout: unknown) {
     const source = String(userItem.source || (legacyKeys.has(itemId) ? itemId : "ch1"));
     const normalizedId = legacyKeys.has(itemId) ? `item_${itemId}_1` : itemId;
     const itemDefaults = (defaults as Record<string, Record<string, unknown>>)[normalizedId] || defaultItemForSource(source, normalizedId);
-    let widget = String(userItem.widget ?? itemDefaults.widget);
+    const rawWidget = String(userItem.widget ?? itemDefaults.widget);
+    const legacyVerticalBar = rawWidget === "vertical_bar";
+    let widget = legacyVerticalBar ? "bar" : rawWidget;
     if (!widgetTypesForSource(source).includes(widget)) widget = String(itemDefaults.widget);
-    merged[normalizedId] = {
+    const userScaleX = Number(userItem.scale_x ?? (legacyVerticalBar ? 1 : itemDefaults.scale_x));
+    const userScaleY = Number(userItem.scale_y ?? (legacyVerticalBar ? 1 : itemDefaults.scale_y));
+    const userRotation = Number(userItem.rotation ?? (legacyVerticalBar ? 0 : itemDefaults.rotation ?? 0));
+    const sanitizedItem = {
       source,
       name: String(userItem.name ?? itemDefaults.name ?? defaultItemName(source, normalizedId)),
       label: String(userItem.label ?? itemDefaults.label),
       widget,
       x: clamp(Number(userItem.x ?? itemDefaults.x), 0.05, 0.95),
       y: clamp(Number(userItem.y ?? itemDefaults.y), 0.05, 0.95),
-      scale_x: clamp(Number(userItem.scale_x ?? itemDefaults.scale_x), 0.2, 12),
-      scale_y: clamp(Number(userItem.scale_y ?? itemDefaults.scale_y), 0.2, 12),
+      scale_x: clamp(legacyVerticalBar ? userScaleY * LEGACY_VERTICAL_BAR_TO_BAR_SCALE_X : userScaleX, 0.2, 12),
+      scale_y: clamp(legacyVerticalBar ? userScaleX * LEGACY_VERTICAL_BAR_TO_BAR_SCALE_Y : userScaleY, 0.2, 12),
+      rotation: clamp(legacyVerticalBar ? userRotation - 90 : userRotation, -180, 180),
       accent_color: String(userItem.accent_color ?? itemDefaults.accent_color),
       negative_color: String(userItem.negative_color ?? itemDefaults.negative_color),
       positive_color: String(userItem.positive_color ?? itemDefaults.positive_color),
@@ -235,6 +261,15 @@ function sanitizeLayout(layout: unknown) {
       ...(userItem.range_center !== undefined ? { range_center: Number(userItem.range_center) } : {}),
       ...(userItem.range_max !== undefined ? { range_max: Number(userItem.range_max) } : {}),
     };
+    if (widget === "bar") {
+      Object.assign(sanitizedItem, {
+        bar_track_fill_thickness: clamp(Number(userItem.bar_track_fill_thickness ?? itemDefaults.bar_track_fill_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_track_fill_thickness), 5, 100),
+        bar_track_outline_thickness: clamp(Number(userItem.bar_track_outline_thickness ?? itemDefaults.bar_track_outline_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_track_outline_thickness), 0, 24),
+        bar_center_mark_thickness: clamp(Number(userItem.bar_center_mark_thickness ?? itemDefaults.bar_center_mark_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_center_mark_thickness), 0, 24),
+        bar_corner_radius: clamp(Number(userItem.bar_corner_radius ?? itemDefaults.bar_corner_radius ?? BAR_APPEARANCE_DEFAULTS.bar_corner_radius), 0, 100),
+      });
+    }
+    merged[normalizedId] = sanitizedItem;
   }
   return Object.keys(merged).length ? merged : {};
 }
@@ -699,7 +734,7 @@ async function renderOverlay(payload: Record<string, unknown>, emit: EmitFn) {
   const durationMs = Number(payload.duration_ms) || 0;
   const renderVideo = Boolean(payload.render_video);
   const ffmpegPath = String(payload.ffmpeg_path || "");
-  const layout = (payload.layout ?? {}) as Record<string, unknown>;
+  const layout = sanitizeLayout(payload.layout);
 
   const { samples } = loadSamples(csvPath, offsetMs);
   const runningStatsArray = buildRunningStatsArray(samples);
