@@ -3,6 +3,14 @@ import { execSync, spawn } from "node:child_process";
 import { app } from "electron";
 import { makeCanvas, renderFrameToCanvas, getRawFrame } from "./frameRenderer";
 import { buildRunningStatsArray, getRunningStatsAt } from "../shared/widgetDraw";
+import {
+  CHANNEL_WIDGET_TYPES,
+  TIME_SOURCE,
+  TIME_WIDGET_TYPES,
+  defaultAppearanceForWidget,
+  sanitizeWidgetAppearance,
+  widgetTypesForSourceName,
+} from "../shared/widgets/registry";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
@@ -23,32 +31,15 @@ type EmitFn = (event: { type: string; [key: string]: unknown }) => void;
 
 const APP_NAME = "MT12OverlayStudio";
 const SETTINGS_FILENAME = "overlay_ui_settings.json";
-const DEFAULT_SOURCES = ["time", "ch1", "ch2", "ch3", "ch4"];
-const TIME_SOURCE = "time";
-const CHANNEL_WIDGET_TYPES = ["gauge", "bar", "text"];
-const TIME_WIDGET_TYPES = ["text"];
+const DEFAULT_SOURCES = [TIME_SOURCE, "ch1", "ch2", "ch3", "ch4"];
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_X = 330 / 220;
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_Y = 130 / 48;
-const BAR_APPEARANCE_DEFAULTS = {
-  bar_track_outline_thickness: 3,
-  bar_center_mark_thickness: 2,
-  bar_corner_radius: 100,
-};
-const GAUGE_APPEARANCE_DEFAULTS = {
-  gauge_outline_thickness: 6,
-  gauge_spoke_thickness: 8,
-  gauge_hub_size: 16,
-};
 
 function clamp(value: number, low: number, high: number) {
   if (!Number.isFinite(value)) return low;
   return Math.max(low, Math.min(high, value));
 }
 
-
-function widgetTypesForSource(source: string) {
-  return source === TIME_SOURCE ? TIME_WIDGET_TYPES : CHANNEL_WIDGET_TYPES;
-}
 
 function sourceDisplayName(source: string) {
   return source;
@@ -104,7 +95,7 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
-      ...GAUGE_APPEARANCE_DEFAULTS,
+      ...defaultAppearanceForWidget("gauge"),
     },
     item_ch2_1: {
       source: "ch2",
@@ -125,7 +116,7 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
-      ...BAR_APPEARANCE_DEFAULTS,
+      ...defaultAppearanceForWidget("bar"),
     },
     item_ch3_1: {
       source: "ch3",
@@ -146,7 +137,7 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
-      ...BAR_APPEARANCE_DEFAULTS,
+      ...defaultAppearanceForWidget("bar"),
     },
     item_ch4_1: {
       source: "ch4",
@@ -167,7 +158,7 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
-      ...BAR_APPEARANCE_DEFAULTS,
+      ...defaultAppearanceForWidget("bar"),
     },
   };
   if (defaults[itemId]) return { ...defaults[itemId] };
@@ -176,7 +167,7 @@ function defaultItemForSource(source: string, itemId: string) {
     source,
     name: defaultItemName(source, itemId),
     label: sourceDisplayName(source),
-    widget: widgetTypesForSource(source)[0],
+    widget: widgetTypesForSourceName(source)[0],
     x: 0.5,
     y: 0.5,
     scale_x: 1,
@@ -209,9 +200,7 @@ function defaultItemForSource(source: string, itemId: string) {
     base.negative_color = "#55beff";
     base.positive_color = "#55beff";
   }
-  if (base.widget === "bar") return { ...base, ...BAR_APPEARANCE_DEFAULTS };
-  if (base.widget === "gauge") return { ...base, ...GAUGE_APPEARANCE_DEFAULTS };
-  return base;
+  return { ...base, ...defaultAppearanceForWidget(base.widget) };
 }
 
 function defaultLayout() {
@@ -240,7 +229,7 @@ function sanitizeLayout(layout: unknown) {
     const rawWidget = String(userItem.widget ?? itemDefaults.widget);
     const legacyVerticalBar = rawWidget === "vertical_bar";
     let widget = legacyVerticalBar ? "bar" : rawWidget;
-    if (!widgetTypesForSource(source).includes(widget)) widget = String(itemDefaults.widget);
+    if (!widgetTypesForSourceName(source).includes(widget)) widget = String(itemDefaults.widget);
     const userScaleX = Number(userItem.scale_x ?? (legacyVerticalBar ? 1 : itemDefaults.scale_x));
     const userScaleY = Number(userItem.scale_y ?? (legacyVerticalBar ? 1 : itemDefaults.scale_y));
     const userRotation = Number(userItem.rotation ?? (legacyVerticalBar ? 0 : itemDefaults.rotation ?? 0));
@@ -268,19 +257,7 @@ function sanitizeLayout(layout: unknown) {
       ...(userItem.range_center !== undefined ? { range_center: Number(userItem.range_center) } : {}),
       ...(userItem.range_max !== undefined ? { range_max: Number(userItem.range_max) } : {}),
     };
-    if (widget === "bar") {
-      Object.assign(sanitizedItem, {
-        bar_track_outline_thickness: clamp(Number(userItem.bar_track_outline_thickness ?? itemDefaults.bar_track_outline_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_track_outline_thickness), 0, 24),
-        bar_center_mark_thickness: clamp(Number(userItem.bar_center_mark_thickness ?? itemDefaults.bar_center_mark_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_center_mark_thickness), 0, 24),
-        bar_corner_radius: clamp(Number(userItem.bar_corner_radius ?? itemDefaults.bar_corner_radius ?? BAR_APPEARANCE_DEFAULTS.bar_corner_radius), 0, 100),
-      });
-    } else if (widget === "gauge") {
-      Object.assign(sanitizedItem, {
-        gauge_outline_thickness: clamp(Number(userItem.gauge_outline_thickness ?? itemDefaults.gauge_outline_thickness ?? GAUGE_APPEARANCE_DEFAULTS.gauge_outline_thickness), 0, 32),
-        gauge_spoke_thickness: clamp(Number(userItem.gauge_spoke_thickness ?? itemDefaults.gauge_spoke_thickness ?? GAUGE_APPEARANCE_DEFAULTS.gauge_spoke_thickness), 1, 40),
-        gauge_hub_size: clamp(Number(userItem.gauge_hub_size ?? itemDefaults.gauge_hub_size ?? GAUGE_APPEARANCE_DEFAULTS.gauge_hub_size), 4, 50),
-      });
-    }
+    Object.assign(sanitizedItem, sanitizeWidgetAppearance(widget, userItem, itemDefaults));
     merged[normalizedId] = sanitizedItem;
   }
   return Object.keys(merged).length ? merged : {};
@@ -855,7 +832,7 @@ async function renderOverlay(payload: Record<string, unknown>, emit: EmitFn) {
 // ─── Command registry ─────────────────────────────────────────────────────────
 
 const commands: Record<string, (payload: Record<string, unknown>, emit: EmitFn) => unknown> = {
-  metadata: () => ({ sources: DEFAULT_SOURCES, channel_widget_types: CHANNEL_WIDGET_TYPES, time_widget_types: TIME_WIDGET_TYPES }),
+  metadata: () => ({ sources: DEFAULT_SOURCES, channel_widget_types: [...CHANNEL_WIDGET_TYPES], time_widget_types: [...TIME_WIDGET_TYPES] }),
   default_layout: () => ({ layout: defaultLayout() }),
   load_settings: () => loadSettings(),
   save_settings: (payload) => saveSettings(payload),

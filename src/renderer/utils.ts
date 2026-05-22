@@ -6,28 +6,16 @@ import type {
   LayoutItem,
   OverlayApi,
 } from "../shared/types";
+import {
+  CHANNEL_WIDGET_TYPES,
+  TIME_WIDGET_TYPES,
+  defaultAppearanceForWidget,
+  widgetBaseSize,
+} from "../shared/widgets/registry";
 
 export type HandleId = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
-export const HANDLE_CURSORS: Record<HandleId, string> = {
-  nw: "nw-resize", n:  "n-resize",  ne: "ne-resize",
-  w:  "w-resize",                   e:  "e-resize",
-  sw: "sw-resize", s:  "s-resize",  se: "se-resize",
-};
-
 export type ResizePreview = { itemId: string; x: number; y: number; scaleX: number; scaleY: number };
-
-export const BAR_APPEARANCE_DEFAULTS = {
-  trackOutlineThickness: 3,
-  centerMarkThickness: 2,
-  cornerRadius: 100,
-};
-
-export const GAUGE_APPEARANCE_DEFAULTS = {
-  outlineThickness: 6,
-  spokeThickness: 8,
-  hubSize: 16,
-};
 
 export type ResizingState = {
   itemId: string;
@@ -56,20 +44,8 @@ export const defaultSettings: AppSettings = {
 
 export const fallbackMetadata: AppMetadata = {
   sources: ["time", "ch1", "ch2", "ch3", "ch4"],
-  channel_widget_types: ["gauge", "bar", "text"],
-  time_widget_types: ["text"],
-};
-
-const fallbackBarAppearance = {
-  bar_track_outline_thickness: BAR_APPEARANCE_DEFAULTS.trackOutlineThickness,
-  bar_center_mark_thickness: BAR_APPEARANCE_DEFAULTS.centerMarkThickness,
-  bar_corner_radius: BAR_APPEARANCE_DEFAULTS.cornerRadius,
-};
-
-const fallbackGaugeAppearance = {
-  gauge_outline_thickness: GAUGE_APPEARANCE_DEFAULTS.outlineThickness,
-  gauge_spoke_thickness: GAUGE_APPEARANCE_DEFAULTS.spokeThickness,
-  gauge_hub_size: GAUGE_APPEARANCE_DEFAULTS.hubSize,
+  channel_widget_types: [...CHANNEL_WIDGET_TYPES],
+  time_widget_types: [...TIME_WIDGET_TYPES],
 };
 
 export const fallbackLayout: Record<string, LayoutItem> = {
@@ -112,7 +88,7 @@ export const fallbackLayout: Record<string, LayoutItem> = {
     outline_color: "#ffffff",
     outline_visible: true,
     shadow_visible: true,
-    ...fallbackGaugeAppearance,
+    ...defaultAppearanceForWidget("gauge"),
   },
   item_ch2_1: {
     source: "ch2",
@@ -133,7 +109,7 @@ export const fallbackLayout: Record<string, LayoutItem> = {
     outline_color: "#ffffff",
     outline_visible: true,
     shadow_visible: true,
-    ...fallbackBarAppearance,
+    ...defaultAppearanceForWidget("bar"),
   },
   item_ch3_1: {
     source: "ch3",
@@ -154,7 +130,7 @@ export const fallbackLayout: Record<string, LayoutItem> = {
     outline_color: "#ffffff",
     outline_visible: true,
     shadow_visible: true,
-    ...fallbackBarAppearance,
+    ...defaultAppearanceForWidget("bar"),
   },
   item_ch4_1: {
     source: "ch4",
@@ -175,7 +151,7 @@ export const fallbackLayout: Record<string, LayoutItem> = {
     outline_color: "#ffffff",
     outline_visible: true,
     shadow_visible: true,
-    ...fallbackBarAppearance,
+    ...defaultAppearanceForWidget("bar"),
   },
 };
 
@@ -228,12 +204,7 @@ export function clamp(value: number, low: number, high: number) {
 }
 
 export function widgetSize(widget: string) {
-  const sizes: Record<string, [number, number]> = {
-    text: [280, 52],
-    bar: [220, 48],
-    gauge: [250, 250],
-  };
-  return sizes[widget] || [180, 60];
+  return widgetBaseSize(widget);
 }
 
 export function itemName(id: string, item: LayoutItem) {
@@ -246,48 +217,6 @@ export function widgetTypesForSource(metadata: AppMetadata, source: string) {
 
 export function widgetTypeLabel(widget: string) {
   return widget.replace(/_/g, " ");
-}
-
-export type ColorKey = "accent_color" | "negative_color" | "positive_color" | "text_color" | "bg_color" | "outline_color";
-
-export function colorControlLabel(item: LayoutItem, key: ColorKey): string | null {
-  if (item.source === "time" || item.widget === "text") {
-    const labels: Record<ColorKey, string | null> = {
-      accent_color: null,
-      negative_color: null,
-      positive_color: null,
-      text_color: null,
-      bg_color: "colors.boxFill",
-      outline_color: "colors.boxOutline",
-    };
-    return labels[key];
-  }
-
-  if (item.widget === "gauge") {
-    const labels: Record<ColorKey, string | null> = {
-      accent_color: "colors.spokeHub",
-      negative_color: null,
-      positive_color: null,
-      text_color: null,
-      bg_color: "colors.gaugeFill",
-      outline_color: "colors.gaugeOutline",
-    };
-    return labels[key];
-  }
-
-  if (item.widget === "bar") {
-    const labels: Record<ColorKey, string | null> = {
-      accent_color: null,
-      negative_color: "colors.negativeFill",
-      positive_color: "colors.positiveFill",
-      text_color: "colors.centerMark",
-      bg_color: "colors.trackFill",
-      outline_color: "colors.trackOutline",
-    };
-    return labels[key];
-  }
-
-  return key;
 }
 
 export function interpolateLocalState(samples: CsvSample[], timeMs: number): FrameState {

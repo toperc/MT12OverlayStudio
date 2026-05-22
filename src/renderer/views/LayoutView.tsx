@@ -3,18 +3,17 @@ import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 import type { AppMetadata, AppSettings, CsvSummary, FrameState, LayoutItem } from "../../shared/types";
 import type { RunningStats } from "../../shared/widgetDraw";
+import type { AppearanceControl, ColorKey } from "../../shared/widgets/base/types";
+import { appearanceGroupsForWidget } from "../../shared/widgets/registry";
 import { WidgetCanvas } from "../components/WidgetCanvas";
 import {
-  BAR_APPEARANCE_DEFAULTS,
-  GAUGE_APPEARANCE_DEFAULTS,
   clamp,
-  colorControlLabel,
   itemName,
   widgetSize,
   widgetTypesForSource,
   widgetTypeLabel,
 } from "../utils";
-import type { ColorKey, HandleId } from "../utils";
+import type { HandleId } from "../utils";
 
 export interface LayoutViewProps {
   settings: AppSettings;
@@ -157,6 +156,22 @@ export function LayoutView(props: LayoutViewProps) {
           </div>
         </div>
       </div>
+    );
+  };
+
+  const renderAppearanceControl = (item: LayoutItem, control: AppearanceControl) => {
+    if (control.kind === "color") {
+      return colorControl(item, control.key, String(t(control.labelKey)));
+    }
+    const raw = item[control.key];
+    const value = typeof raw === "number" ? raw : control.defaultValue;
+    return appearanceNumberControl(
+      control.key,
+      control.labelKey,
+      value,
+      control.min,
+      control.max,
+      control.step,
     );
   };
 
@@ -443,100 +458,18 @@ export function LayoutView(props: LayoutViewProps) {
                 {t("layout.appearance")}
               </summary>
               <div className="section-body">
-                {selectedItem.widget === "bar" ? (
-                  <div className="bar-appearance-groups">
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("layout.subgroupBarFills")}</div>
-                      {colorControl(selectedItem, "negative_color", String(t("colors.negativeFill")))}
-                      {colorControl(selectedItem, "positive_color", String(t("colors.positiveFill")))}
+                <div className="bar-appearance-groups">
+                  {appearanceGroupsForWidget(selectedItem.widget).map((group, groupIndex) => (
+                    <div className="bar-appearance-group" key={`${group.titleKey ?? "group"}-${groupIndex}`}>
+                      {group.titleKey && <div className="bar-appearance-heading">{t(group.titleKey)}</div>}
+                      {group.controls.map((control) => (
+                        <React.Fragment key={`${control.kind}-${String(control.key)}`}>
+                          {renderAppearanceControl(selectedItem, control)}
+                        </React.Fragment>
+                      ))}
                     </div>
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("colors.centerMark")}</div>
-                      {colorControl(selectedItem, "text_color", String(t("layout.controlColor")))}
-                      {appearanceNumberControl(
-                        "bar_center_mark_thickness",
-                        "layout.controlThickness",
-                        selectedItem.bar_center_mark_thickness ?? BAR_APPEARANCE_DEFAULTS.centerMarkThickness,
-                        0,
-                        24,
-                        1,
-                      )}
-                    </div>
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("colors.trackFill")}</div>
-                      {colorControl(selectedItem, "bg_color", String(t("layout.controlColor")))}
-                    </div>
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("colors.trackOutline")}</div>
-                      {colorControl(selectedItem, "outline_color", String(t("layout.controlColor")))}
-                      {appearanceNumberControl(
-                        "bar_track_outline_thickness",
-                        "layout.controlThickness",
-                        selectedItem.bar_track_outline_thickness ?? BAR_APPEARANCE_DEFAULTS.trackOutlineThickness,
-                        0,
-                        24,
-                        1,
-                      )}
-                    </div>
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("layout.subgroupBarAppearance")}</div>
-                      {appearanceNumberControl(
-                        "bar_corner_radius",
-                        "layout.barCornerRadius",
-                        selectedItem.bar_corner_radius ?? BAR_APPEARANCE_DEFAULTS.cornerRadius,
-                        0,
-                        100,
-                        1,
-                      )}
-                    </div>
-                  </div>
-                ) : selectedItem.widget === "gauge" ? (
-                  <div className="bar-appearance-groups">
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("layout.subgroupGaugeNeedle")}</div>
-                      {colorControl(selectedItem, "accent_color", String(t("colors.spokeHub")))}
-                      {appearanceNumberControl(
-                        "gauge_spoke_thickness",
-                        "layout.gaugeSpokeThickness",
-                        selectedItem.gauge_spoke_thickness ?? GAUGE_APPEARANCE_DEFAULTS.spokeThickness,
-                        1,
-                        40,
-                        1,
-                      )}
-                      {appearanceNumberControl(
-                        "gauge_hub_size",
-                        "layout.gaugeHubSize",
-                        selectedItem.gauge_hub_size ?? GAUGE_APPEARANCE_DEFAULTS.hubSize,
-                        4,
-                        50,
-                        1,
-                      )}
-                    </div>
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("colors.gaugeFill")}</div>
-                      {colorControl(selectedItem, "bg_color", String(t("layout.controlColor")))}
-                    </div>
-                    <div className="bar-appearance-group">
-                      <div className="bar-appearance-heading">{t("colors.gaugeOutline")}</div>
-                      {colorControl(selectedItem, "outline_color", String(t("layout.controlColor")))}
-                      {appearanceNumberControl(
-                        "gauge_outline_thickness",
-                        "layout.gaugeOutlineThickness",
-                        selectedItem.gauge_outline_thickness ?? GAUGE_APPEARANCE_DEFAULTS.outlineThickness,
-                        0,
-                        32,
-                        1,
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="color-grid">
-                    {(["accent_color","negative_color","positive_color","text_color","bg_color","outline_color"] as ColorKey[])
-                      .map((key) => [key, colorControlLabel(selectedItem, key)] as const)
-                      .filter((entry): entry is readonly [ColorKey, string] => entry[1] !== null)
-                      .map(([key, labelKey]) => colorControl(selectedItem, key, String(t(labelKey))))}
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
             </details>
 
