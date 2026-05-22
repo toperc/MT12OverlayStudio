@@ -6,6 +6,7 @@ import type { RunningStats } from "../../shared/widgetDraw";
 import { WidgetCanvas } from "../components/WidgetCanvas";
 import {
   BAR_APPEARANCE_DEFAULTS,
+  GAUGE_APPEARANCE_DEFAULTS,
   clamp,
   colorControlLabel,
   itemName,
@@ -94,8 +95,8 @@ export function LayoutView(props: LayoutViewProps) {
     onGoToSource,
   } = props;
 
-  const barNumberControl = (
-    key: "bar_track_fill_thickness" | "bar_track_outline_thickness" | "bar_center_mark_thickness" | "bar_corner_radius",
+  const appearanceNumberControl = (
+    key: keyof LayoutItem,
     labelKey: string,
     value: number,
     min: number,
@@ -103,7 +104,7 @@ export function LayoutView(props: LayoutViewProps) {
     step: number,
   ) => {
     const label = String(t(labelKey));
-    const update = (raw: string) => onUpdateSelectedItem(key, clamp(Number(raw), min, max) as LayoutItem[typeof key]);
+    const update = (raw: string) => onUpdateSelectedItem(key, clamp(Number(raw), min, max) as never);
     return (
       <div className="prop-row" key={key}>
         <span className="prop-label" title={label}>{label}</span>
@@ -452,7 +453,7 @@ export function LayoutView(props: LayoutViewProps) {
                     <div className="bar-appearance-group">
                       <div className="bar-appearance-heading">{t("colors.centerMark")}</div>
                       {colorControl(selectedItem, "text_color", String(t("layout.controlColor")))}
-                      {barNumberControl(
+                      {appearanceNumberControl(
                         "bar_center_mark_thickness",
                         "layout.controlThickness",
                         selectedItem.bar_center_mark_thickness ?? BAR_APPEARANCE_DEFAULTS.centerMarkThickness,
@@ -464,19 +465,11 @@ export function LayoutView(props: LayoutViewProps) {
                     <div className="bar-appearance-group">
                       <div className="bar-appearance-heading">{t("colors.trackFill")}</div>
                       {colorControl(selectedItem, "bg_color", String(t("layout.controlColor")))}
-                      {barNumberControl(
-                        "bar_track_fill_thickness",
-                        "layout.controlThicknessPercent",
-                        selectedItem.bar_track_fill_thickness ?? BAR_APPEARANCE_DEFAULTS.trackFillThickness,
-                        5,
-                        100,
-                        1,
-                      )}
                     </div>
                     <div className="bar-appearance-group">
                       <div className="bar-appearance-heading">{t("colors.trackOutline")}</div>
                       {colorControl(selectedItem, "outline_color", String(t("layout.controlColor")))}
-                      {barNumberControl(
+                      {appearanceNumberControl(
                         "bar_track_outline_thickness",
                         "layout.controlThickness",
                         selectedItem.bar_track_outline_thickness ?? BAR_APPEARANCE_DEFAULTS.trackOutlineThickness,
@@ -487,12 +480,51 @@ export function LayoutView(props: LayoutViewProps) {
                     </div>
                     <div className="bar-appearance-group">
                       <div className="bar-appearance-heading">{t("layout.subgroupBarAppearance")}</div>
-                      {barNumberControl(
+                      {appearanceNumberControl(
                         "bar_corner_radius",
                         "layout.barCornerRadius",
                         selectedItem.bar_corner_radius ?? BAR_APPEARANCE_DEFAULTS.cornerRadius,
                         0,
                         100,
+                        1,
+                      )}
+                    </div>
+                  </div>
+                ) : selectedItem.widget === "gauge" ? (
+                  <div className="bar-appearance-groups">
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("layout.subgroupGaugeNeedle")}</div>
+                      {colorControl(selectedItem, "accent_color", String(t("colors.spokeHub")))}
+                      {appearanceNumberControl(
+                        "gauge_spoke_thickness",
+                        "layout.gaugeSpokeThickness",
+                        selectedItem.gauge_spoke_thickness ?? GAUGE_APPEARANCE_DEFAULTS.spokeThickness,
+                        1,
+                        40,
+                        1,
+                      )}
+                      {appearanceNumberControl(
+                        "gauge_hub_size",
+                        "layout.gaugeHubSize",
+                        selectedItem.gauge_hub_size ?? GAUGE_APPEARANCE_DEFAULTS.hubSize,
+                        4,
+                        50,
+                        1,
+                      )}
+                    </div>
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("colors.gaugeFill")}</div>
+                      {colorControl(selectedItem, "bg_color", String(t("layout.controlColor")))}
+                    </div>
+                    <div className="bar-appearance-group">
+                      <div className="bar-appearance-heading">{t("colors.gaugeOutline")}</div>
+                      {colorControl(selectedItem, "outline_color", String(t("layout.controlColor")))}
+                      {appearanceNumberControl(
+                        "gauge_outline_thickness",
+                        "layout.gaugeOutlineThickness",
+                        selectedItem.gauge_outline_thickness ?? GAUGE_APPEARANCE_DEFAULTS.outlineThickness,
+                        0,
+                        32,
                         1,
                       )}
                     </div>

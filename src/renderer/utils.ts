@@ -18,10 +18,15 @@ export const HANDLE_CURSORS: Record<HandleId, string> = {
 export type ResizePreview = { itemId: string; x: number; y: number; scaleX: number; scaleY: number };
 
 export const BAR_APPEARANCE_DEFAULTS = {
-  trackFillThickness: 68,
   trackOutlineThickness: 3,
   centerMarkThickness: 2,
   cornerRadius: 100,
+};
+
+export const GAUGE_APPEARANCE_DEFAULTS = {
+  outlineThickness: 6,
+  spokeThickness: 8,
+  hubSize: 16,
 };
 
 export type ResizingState = {
@@ -56,10 +61,15 @@ export const fallbackMetadata: AppMetadata = {
 };
 
 const fallbackBarAppearance = {
-  bar_track_fill_thickness: BAR_APPEARANCE_DEFAULTS.trackFillThickness,
   bar_track_outline_thickness: BAR_APPEARANCE_DEFAULTS.trackOutlineThickness,
   bar_center_mark_thickness: BAR_APPEARANCE_DEFAULTS.centerMarkThickness,
   bar_corner_radius: BAR_APPEARANCE_DEFAULTS.cornerRadius,
+};
+
+const fallbackGaugeAppearance = {
+  gauge_outline_thickness: GAUGE_APPEARANCE_DEFAULTS.outlineThickness,
+  gauge_spoke_thickness: GAUGE_APPEARANCE_DEFAULTS.spokeThickness,
+  gauge_hub_size: GAUGE_APPEARANCE_DEFAULTS.hubSize,
 };
 
 export const fallbackLayout: Record<string, LayoutItem> = {
@@ -102,6 +112,7 @@ export const fallbackLayout: Record<string, LayoutItem> = {
     outline_color: "#ffffff",
     outline_visible: true,
     shadow_visible: true,
+    ...fallbackGaugeAppearance,
   },
   item_ch2_1: {
     source: "ch2",

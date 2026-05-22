@@ -111,10 +111,12 @@ function rgba(hex: string, alpha: number): string {
 
 /** CSS: background-color: ${bg_color}aa  → 0xAA/0xFF ≈ 0.6667 */
 const BG_ALPHA = 170 / 255;
-const BAR_TRACK_FILL_THICKNESS = 68;
 const BAR_TRACK_OUTLINE_THICKNESS = 3;
 const BAR_CENTER_MARK_THICKNESS = 2;
 const BAR_CORNER_RADIUS = 100;
+const GAUGE_OUTLINE_THICKNESS = 6;
+const GAUGE_SPOKE_THICKNESS = 8;
+const GAUGE_HUB_SIZE = 16;
 
 function optionalNumber(value: number | undefined, fallback: number, low: number, high: number): number {
   const parsed = Number(value ?? fallback);
@@ -203,10 +205,15 @@ function drawBackground(ctx: DrawCtx, w: number, h: number, item: LayoutItem, sc
 // ─── Gauge ────────────────────────────────────────────────────────────────────
 
 function drawGauge(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: number, sc: number) {
-  const ringDiam = 0.72 * w;
-  const ringR = ringDiam / 2;
+  const outerDiam = Math.min(w, h);
+  const outerR = outerDiam / 2;
   const cx = w / 2;
   const cy = h / 2;
+  const outlineW = item.outline_visible !== false
+    ? Math.min(optionalNumber(item.gauge_outline_thickness, GAUGE_OUTLINE_THICKNESS, 0, 32) * sc, outerR)
+    : 0;
+  const ringR = Math.max(0, outerR - outlineW / 2);
+  const ringDiam = ringR * 2;
 
   ctx.beginPath();
   ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
@@ -215,7 +222,7 @@ function drawGauge(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: 
     ctx.fill();
   }
 
-  const spokeW = Math.max(3, 8 * sc);
+  const spokeW = Math.max(1, optionalNumber(item.gauge_spoke_thickness, GAUGE_SPOKE_THICKNESS, 1, 40) * sc);
   const spokeH = 0.42 * ringDiam;
   const angle = value * 150 * (Math.PI / 180);
 
@@ -227,17 +234,17 @@ function drawGauge(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: 
   ctx.fill();
   ctx.restore();
 
-  const hubR = 0.16 * ringDiam / 2;
+  const hubR = (optionalNumber(item.gauge_hub_size, GAUGE_HUB_SIZE, 4, 50) / 100) * ringDiam / 2;
   ctx.beginPath();
   ctx.arc(cx, cy, Math.max(3, hubR), 0, Math.PI * 2);
   ctx.fillStyle = item.accent_color;
   ctx.fill();
 
-  if (item.outline_visible !== false) {
+  if (outlineW > 0) {
     ctx.beginPath();
     ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
     ctx.strokeStyle = item.outline_color;
-    ctx.lineWidth = Math.max(2, 6 * sc);
+    ctx.lineWidth = outlineW;
     ctx.stroke();
   }
 
@@ -246,9 +253,8 @@ function drawGauge(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: 
 // ─── Bar ─────────────────────────────────────────────────────────────────────
 
 function drawBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: number, sc: number) {
-  const trackW = 0.90 * w;
-  const trackFillPct = optionalNumber(item.bar_track_fill_thickness, BAR_TRACK_FILL_THICKNESS, 5, 100) / 100;
-  const trackH = Math.max(1, trackFillPct * h);
+  const trackW = w;
+  const trackH = h;
   const trackX = (w - trackW) / 2;
   const trackY = (h - trackH) / 2;
   const outlineW = item.outline_visible !== false

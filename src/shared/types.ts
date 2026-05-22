@@ -86,10 +86,12 @@ export type LayoutItem = {
   outline_color: string;
   outline_visible?: boolean;
   shadow_visible?: boolean;
-  bar_track_fill_thickness?: number;
   bar_track_outline_thickness?: number;
   bar_center_mark_thickness?: number;
   bar_corner_radius?: number;
+  gauge_outline_thickness?: number;
+  gauge_spoke_thickness?: number;
+  gauge_hub_size?: number;
   transforms?: string[];
   range_min?: number;
   range_center?: number;

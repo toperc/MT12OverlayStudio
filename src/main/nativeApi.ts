@@ -30,10 +30,14 @@ const TIME_WIDGET_TYPES = ["text"];
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_X = 330 / 220;
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_Y = 130 / 48;
 const BAR_APPEARANCE_DEFAULTS = {
-  bar_track_fill_thickness: 68,
   bar_track_outline_thickness: 3,
   bar_center_mark_thickness: 2,
   bar_corner_radius: 100,
+};
+const GAUGE_APPEARANCE_DEFAULTS = {
+  gauge_outline_thickness: 6,
+  gauge_spoke_thickness: 8,
+  gauge_hub_size: 16,
 };
 
 function clamp(value: number, low: number, high: number) {
@@ -100,6 +104,7 @@ function defaultItemForSource(source: string, itemId: string) {
       outline_color: "#ffffff",
       outline_visible: true,
       shadow_visible: true,
+      ...GAUGE_APPEARANCE_DEFAULTS,
     },
     item_ch2_1: {
       source: "ch2",
@@ -204,7 +209,9 @@ function defaultItemForSource(source: string, itemId: string) {
     base.negative_color = "#55beff";
     base.positive_color = "#55beff";
   }
-  return base.widget === "bar" ? { ...base, ...BAR_APPEARANCE_DEFAULTS } : base;
+  if (base.widget === "bar") return { ...base, ...BAR_APPEARANCE_DEFAULTS };
+  if (base.widget === "gauge") return { ...base, ...GAUGE_APPEARANCE_DEFAULTS };
+  return base;
 }
 
 function defaultLayout() {
@@ -263,10 +270,15 @@ function sanitizeLayout(layout: unknown) {
     };
     if (widget === "bar") {
       Object.assign(sanitizedItem, {
-        bar_track_fill_thickness: clamp(Number(userItem.bar_track_fill_thickness ?? itemDefaults.bar_track_fill_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_track_fill_thickness), 5, 100),
         bar_track_outline_thickness: clamp(Number(userItem.bar_track_outline_thickness ?? itemDefaults.bar_track_outline_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_track_outline_thickness), 0, 24),
         bar_center_mark_thickness: clamp(Number(userItem.bar_center_mark_thickness ?? itemDefaults.bar_center_mark_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_center_mark_thickness), 0, 24),
         bar_corner_radius: clamp(Number(userItem.bar_corner_radius ?? itemDefaults.bar_corner_radius ?? BAR_APPEARANCE_DEFAULTS.bar_corner_radius), 0, 100),
+      });
+    } else if (widget === "gauge") {
+      Object.assign(sanitizedItem, {
+        gauge_outline_thickness: clamp(Number(userItem.gauge_outline_thickness ?? itemDefaults.gauge_outline_thickness ?? GAUGE_APPEARANCE_DEFAULTS.gauge_outline_thickness), 0, 32),
+        gauge_spoke_thickness: clamp(Number(userItem.gauge_spoke_thickness ?? itemDefaults.gauge_spoke_thickness ?? GAUGE_APPEARANCE_DEFAULTS.gauge_spoke_thickness), 1, 40),
+        gauge_hub_size: clamp(Number(userItem.gauge_hub_size ?? itemDefaults.gauge_hub_size ?? GAUGE_APPEARANCE_DEFAULTS.gauge_hub_size), 4, 50),
       });
     }
     merged[normalizedId] = sanitizedItem;
