@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.3] - 2026-05-19
+## [2.1.0] - 2026-05-27
 
 ### Documentation
 
@@ -14,6 +14,8 @@
 - Improve editor
 - Improve layout
 - Add virustotal check
+- Refactor bar and improve customization
+- Organise code based on widgets
 
 ### Miscellaneous
 
@@ -25,6 +27,7 @@
 - Release v2.0.2
 - Remove unused code old from previous widget canvas
 - Release v2.0.3
+- Release v2.1.0
 
 ## [1.0.0] - 2026-05-15
 
