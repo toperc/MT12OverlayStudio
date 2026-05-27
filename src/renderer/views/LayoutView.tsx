@@ -5,15 +5,17 @@ import type { AppMetadata, AppSettings, CsvSummary, FrameState, LayoutItem } fro
 import type { RunningStats } from "../../shared/widgetDraw";
 import { WidgetCanvas } from "../components/WidgetCanvas";
 import {
-  BAR_APPEARANCE_DEFAULTS,
-  clamp,
   colorControlLabel,
   itemName,
-  widgetSize,
-  widgetTypesForSource,
   widgetTypeLabel,
 } from "../utils";
 import type { ColorKey, HandleId } from "../utils";
+import {
+  BAR_APPEARANCE_DEFAULTS,
+  clamp,
+  widgetSize,
+  widgetTypesForSource,
+} from "../../shared/util";
 
 export interface LayoutViewProps {
   settings: AppSettings;

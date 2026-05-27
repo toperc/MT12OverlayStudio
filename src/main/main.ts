@@ -60,22 +60,10 @@ function createWindow() {
             const metadata = await window.overlayApi.metadata();
             const settings = await window.overlayApi.loadSettings();
             const radios = await window.overlayApi.discoverRadios();
-            const csvPath = ${JSON.stringify(process.env.MT12_SMOKE_CSV || "")};
-            let preview = null;
-            if (csvPath) {
-              const summary = await window.overlayApi.loadCsvSummary({ csv_path: csvPath, offset_ms: 0 });
-            preview = await window.overlayApi.previewState({
-                csv_path: csvPath,
-                time_ms: Math.min(1000, summary.duration_ms),
-                layout: settings.layout,
-                calibration: settings.calibration,
-              });
-            }
             return {
               sourceCount: metadata.sources.length,
               layoutCount: Object.keys(settings.layout || {}).length,
               radioCount: radios.sources.length,
-              previewOk: preview ? Boolean(preview.state) : null,
             };
           })();
         `);

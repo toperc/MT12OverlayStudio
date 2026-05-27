@@ -6,6 +6,7 @@
  */
 
 import type { CsvSample, LayoutItem } from "./types";
+import { BAR_APPEARANCE_DEFAULTS, clamp, itemBounds } from "./util";
 
 export type FrameState = Record<string, number>;
 
@@ -95,10 +96,6 @@ function applyTransforms(value: number, transforms: string[] | undefined, stats:
   return v;
 }
 
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
-
 /** Parse '#rrggbb' or '#rgb' → 'rgba(r,g,b,a)' */
 function rgba(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
@@ -111,10 +108,6 @@ function rgba(hex: string, alpha: number): string {
 
 /** CSS: background-color: ${bg_color}aa  → 0xAA/0xFF ≈ 0.6667 */
 const BG_ALPHA = 170 / 255;
-const BAR_TRACK_FILL_THICKNESS = 68;
-const BAR_TRACK_OUTLINE_THICKNESS = 3;
-const BAR_CENTER_MARK_THICKNESS = 2;
-const BAR_CORNER_RADIUS = 100;
 
 function optionalNumber(value: number | undefined, fallback: number, low: number, high: number): number {
   const parsed = Number(value ?? fallback);
@@ -124,31 +117,6 @@ function optionalNumber(value: number | undefined, fallback: number, low: number
 function formatValue(value: number): string {
   const v = Math.round(value);
   return `${v >= 0 ? "+" : ""}${v}`;
-}
-
-function widgetBaseSize(widget: string): [number, number] {
-  const sizes: Record<string, [number, number]> = {
-    text:         [280, 52],
-    bar:          [220, 48],
-    gauge:        [250, 250],
-  };
-  return sizes[widget] ?? [180, 60];
-}
-
-function itemBoundsFromLayout(
-  item: LayoutItem,
-  fw: number,
-  fh: number,
-): [number, number, number, number] {
-  const [bw, bh] = widgetBaseSize(item.widget);
-  const s = clamp(Math.min(fw / 1920, fh / 1080), 0.1, 8);
-  const w = Math.max(32, bw * s * (item.scale_x || 1));
-  const h = Math.max(24, bh * s * (item.scale_y || 1));
-  const cx = item.x * fw;
-  const cy = item.y * fh;
-  const left = clamp(cx - w / 2, 0, Math.max(0, fw - w));
-  const top  = clamp(cy - h / 2, 0, Math.max(0, fh - h));
-  return [left, top, left + w, top + h];
 }
 
 function valueForSource(state: FrameState, source: string): number {
@@ -247,15 +215,15 @@ function drawGauge(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: 
 
 function drawBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: number, sc: number) {
   const trackW = 0.90 * w;
-  const trackFillPct = optionalNumber(item.bar_track_fill_thickness, BAR_TRACK_FILL_THICKNESS, 5, 100) / 100;
+  const trackFillPct = optionalNumber(item.bar_track_fill_thickness, BAR_APPEARANCE_DEFAULTS.trackFillThickness, 5, 100) / 100;
   const trackH = Math.max(1, trackFillPct * h);
   const trackX = (w - trackW) / 2;
   const trackY = (h - trackH) / 2;
   const outlineW = item.outline_visible !== false
-    ? Math.min(optionalNumber(item.bar_track_outline_thickness, BAR_TRACK_OUTLINE_THICKNESS, 0, 24) * sc, trackW / 2, trackH / 2)
+    ? Math.min(optionalNumber(item.bar_track_outline_thickness, BAR_APPEARANCE_DEFAULTS.trackOutlineThickness, 0, 24) * sc, trackW / 2, trackH / 2)
     : 0;
   const innerInset = outlineW;
-  const cornerPct = optionalNumber(item.bar_corner_radius, BAR_CORNER_RADIUS, 0, 100) / 100;
+  const cornerPct = optionalNumber(item.bar_corner_radius, BAR_APPEARANCE_DEFAULTS.cornerRadius, 0, 100) / 100;
   const outerRadius = (trackH / 2) * cornerPct;
 
   if (item.shadow_visible !== false) {
@@ -301,7 +269,7 @@ function drawBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: nu
   }
 
   // Center tick line (geometric guide, always visible)
-  const centerMarkW = optionalNumber(item.bar_center_mark_thickness, BAR_CENTER_MARK_THICKNESS, 0, 24) * sc;
+  const centerMarkW = optionalNumber(item.bar_center_mark_thickness, BAR_APPEARANCE_DEFAULTS.centerMarkThickness, 0, 24) * sc;
   if (centerMarkW > 0 && fillH > 0.5) {
     ctx.fillStyle = item.text_color;
     ctx.fillRect(midX - centerMarkW / 2, fillY, centerMarkW, fillH);
@@ -346,7 +314,7 @@ function drawWidget(
   fw: number,
   fh: number,
 ) {
-  const [left, top, right, bottom] = itemBoundsFromLayout(item, fw, fh);
+  const [left, top, right, bottom] = itemBounds(item, fw, fh);
   const w = right - left;
   const h = bottom - top;
   const sc = clamp(Math.min(fw / 1920, fh / 1080), 0.1, 8);

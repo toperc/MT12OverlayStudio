@@ -3,19 +3,14 @@ import { execSync, spawn } from "node:child_process";
 import { app } from "electron";
 import { makeCanvas, renderFrameToCanvas, getRawFrame } from "./frameRenderer";
 import { buildRunningStatsArray, getRunningStatsAt } from "../shared/widgetDraw";
+import { BAR_APPEARANCE_DEFAULTS as BAR_DEFAULTS, clamp, interpolateState } from "../shared/util";
+import type { CsvSample } from "../shared/types";
 import https from "node:https";
 import os from "node:os";
 import path from "node:path";
 
-type Sample = {
-  time_ms: number;
-  values: Record<string, number>;
-};
-
-type FrameState = Record<string, number>;
-
 type LoadedCsv = {
-  samples: Sample[];
+  samples: CsvSample[];
   sources: string[];
 };
 
@@ -30,24 +25,14 @@ const TIME_WIDGET_TYPES = ["text"];
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_X = 330 / 220;
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_Y = 130 / 48;
 const BAR_APPEARANCE_DEFAULTS = {
-  bar_track_fill_thickness: 68,
-  bar_track_outline_thickness: 3,
-  bar_center_mark_thickness: 2,
-  bar_corner_radius: 100,
+  bar_track_fill_thickness: BAR_DEFAULTS.trackFillThickness,
+  bar_track_outline_thickness: BAR_DEFAULTS.trackOutlineThickness,
+  bar_center_mark_thickness: BAR_DEFAULTS.centerMarkThickness,
+  bar_corner_radius: BAR_DEFAULTS.cornerRadius,
 };
-
-function clamp(value: number, low: number, high: number) {
-  if (!Number.isFinite(value)) return low;
-  return Math.max(low, Math.min(high, value));
-}
-
 
 function widgetTypesForSource(source: string) {
   return source === TIME_SOURCE ? TIME_WIDGET_TYPES : CHANNEL_WIDGET_TYPES;
-}
-
-function sourceDisplayName(source: string) {
-  return source;
 }
 
 function defaultItemName(source: string, itemId: string) {
@@ -170,7 +155,7 @@ function defaultItemForSource(source: string, itemId: string) {
   const base = {
     source,
     name: defaultItemName(source, itemId),
-    label: sourceDisplayName(source),
+    label: source,
     widget: widgetTypesForSource(source)[0],
     x: 0.5,
     y: 0.5,
@@ -377,7 +362,7 @@ function loadSamples(csvPath: string, offsetMs = 0): LoadedCsv {
   const index = Object.fromEntries(headers.map((header, idx) => [header, idx]));
   let firstTick: number | null = null;
 
-  const samples: Sample[] = [];
+  const samples: CsvSample[] = [];
   for (const line of lines.slice(1)) {
     const row = parseCsvLine(line);
     const tick = Number(row[index.timestamp]);
@@ -395,25 +380,6 @@ function loadSamples(csvPath: string, offsetMs = 0): LoadedCsv {
   }
   if (!samples.length) throw new Error("CSV contains no samples.");
   return { samples, sources };
-}
-
-function interpolateState(samples: Sample[], timeMs: number): FrameState {
-  if (timeMs <= samples[0].time_ms) return { ...samples[0].values };
-  const last = samples[samples.length - 1];
-  if (timeMs >= last.time_ms) return { ...last.values };
-  let index = 0;
-  while (index < samples.length - 2 && samples[index + 1].time_ms < timeMs) index += 1;
-  const left = samples[index];
-  const right = samples[index + 1];
-  const segment = right.time_ms - left.time_ms;
-  const t = segment <= 0 ? 0 : (timeMs - left.time_ms) / segment;
-  const lerp = (a: number, b: number) => a + (b - a) * t;
-  const state: FrameState = {};
-  const sources = new Set([...Object.keys(left.values), ...Object.keys(right.values)]);
-  for (const source of sources) {
-    state[source] = lerp(left.values[source] ?? 0, right.values[source] ?? 0);
-  }
-  return state;
 }
 
 function loadCsvSummary(payload: Record<string, unknown>) {
