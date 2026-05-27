@@ -23,16 +23,18 @@ import "./styles.css";
 import "./i18n";
 import {
   api,
-  clamp,
   defaultSettings,
   fallbackMetadata,
-  interpolateLocalState,
+} from "./utils";
+import type { HandleId, ResizePreview, ResizingState } from "./utils";
+import {
+  clamp,
+  interpolateState,
   itemBounds,
   numeric,
   widgetSize,
   widgetTypesForSource,
-} from "./utils";
-import type { HandleId, ResizePreview, ResizingState } from "./utils";
+} from "../shared/util";
 import { buildRunningStatsArray, getRunningStatsAt, type RunningStats } from "../shared/widgetDraw";
 import { CaptureRenderer } from "./components/CaptureRenderer";
 import { LangDropdown } from "./components/LangDropdown";
@@ -219,7 +221,7 @@ function App() {
   async function refreshPreview(path = settings.csv_path, timeMs = previewTime, sourceSettings = settings) {
     if (!path) return;
     if (previewSamples.length) {
-      setPreviewState(interpolateLocalState(previewSamples, timeMs));
+      setPreviewState(interpolateState(previewSamples, timeMs));
       return;
     }
     const requestId = previewRequestRef.current + 1;
@@ -251,7 +253,7 @@ function App() {
       void refreshPreview(settings.csv_path, timeMs, latestSettingsRef.current);
       return;
     }
-    setPreviewState(interpolateLocalState(samples, timeMs));
+    setPreviewState(interpolateState(samples, timeMs));
   }
 
   async function autoDetectFfmpeg() {
