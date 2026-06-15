@@ -43,6 +43,30 @@ import { LayoutView } from "./views/LayoutView";
 import { ExportView } from "./views/ExportView";
 import { InstallView } from "./views/InstallView";
 
+function isKeyboardEditingTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName);
+}
+
+type LayoutSnapshot = {
+  layout: AppSettings["layout"];
+  selectedItemId: string;
+};
+
+function cloneLayoutItem(item: LayoutItem) {
+  const nextItem = { ...item };
+  if (item.transforms) nextItem.transforms = [...item.transforms];
+  return nextItem;
+}
+
+function cloneLayout(layout: AppSettings["layout"]) {
+  const copy: AppSettings["layout"] = {};
+  for (const [id, item] of Object.entries(layout ?? {})) {
+    copy[id] = cloneLayoutItem(item);
+  }
+  return copy;
+}
+
 function App() {
   const { t, i18n } = useTranslation();
 
@@ -89,6 +113,9 @@ function App() {
   const previewScheduleRef = useRef<number | null>(null);
   const pendingPreviewTimeRef = useRef(0);
   const latestSettingsRef = useRef<AppSettings>(defaultSettings);
+  const selectedItemIdRef = useRef("");
+  const layoutUndoStackRef = useRef<LayoutSnapshot[]>([]);
+  const widgetClipboardRef = useRef<LayoutItem | null>(null);
 
   const layoutItems = useMemo(() => Object.entries(settings.layout ?? {}), [settings.layout]);
   const selectedItem = selectedItemId ? settings.layout[selectedItemId] : undefined;
@@ -105,6 +132,62 @@ function App() {
   }, [settings]);
 
   useEffect(() => {
+    selectedItemIdRef.current = selectedItemId;
+  }, [selectedItemId]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (currentView !== "layout") return;
+      if (event.defaultPrevented || isKeyboardEditingTarget(event.target)) return;
+
+      const shortcutPressed = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+      if (shortcutPressed) {
+        const key = event.key.toLowerCase();
+        if (key === "z") {
+          event.preventDefault();
+          undoLayoutChange();
+          return;
+        }
+        if (key === "c") {
+          event.preventDefault();
+          copySelectedWidget();
+          return;
+        }
+        if (key === "v") {
+          event.preventDefault();
+          void pasteCopiedWidget();
+          return;
+        }
+      }
+
+      if (!selectedItemId) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+      if (event.key === "Delete") {
+        event.preventDefault();
+        deleteWidget();
+        return;
+      }
+
+      const step = event.shiftKey ? 10 : 1;
+      const movement: Record<string, [number, number]> = {
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
+      };
+      const delta = movement[event.key];
+      if (!delta) return;
+
+      event.preventDefault();
+      moveSelectedWidgetByPixels(delta[0], delta[1]);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentView, selectedItemId, outputWidth, outputHeight]);
+
+  useEffect(() => {
     return () => {
       if (dragRafRef.current !== null) window.cancelAnimationFrame(dragRafRef.current);
       if (previewScheduleRef.current !== null) window.cancelAnimationFrame(previewScheduleRef.current);
@@ -118,7 +201,7 @@ function App() {
       setMetadata(loadedMetadata);
       setSettings(merged);
       const firstId = Object.keys(merged.layout ?? {})[0];
-      setSelectedItemId(firstId ?? "");
+      selectLayoutItem(firstId ?? "");
       if (merged.csv_path) {
         void loadCsv(merged.csv_path, merged);
       }
@@ -150,7 +233,7 @@ function App() {
 
   useEffect(() => {
     const w = window as unknown as Record<string, unknown>;
-    w.__screenshotSelectWidget = setSelectedItemId;
+    w.__screenshotSelectWidget = selectLayoutItem;
     w.__screenshotUpdateLayout = (id: string, updates: Partial<LayoutItem>) => {
       setSettings((current) => ({
         ...current,
@@ -163,19 +246,67 @@ function App() {
     setLogs((current) => [message, ...current].slice(0, 200));
   }
 
+  function selectLayoutItem(id: string) {
+    selectedItemIdRef.current = id;
+    setSelectedItemId(id);
+  }
+
+  function rememberLayoutUndo(layout = latestSettingsRef.current.layout, itemId = selectedItemIdRef.current) {
+    layoutUndoStackRef.current.push({
+      layout: cloneLayout(layout),
+      selectedItemId: itemId,
+    });
+    if (layoutUndoStackRef.current.length > 100) layoutUndoStackRef.current.shift();
+  }
+
+  function clearPreviewEditState() {
+    draggingItemRef.current = null;
+    dragPreviewRef.current = null;
+    resizingRef.current = null;
+    resizePreviewRef.current = null;
+    setDragPreview(null);
+    setResizePreview(null);
+  }
+
+  function undoLayoutChange() {
+    const snapshot = layoutUndoStackRef.current.pop();
+    if (!snapshot) return;
+    clearPreviewEditState();
+
+    const restoredLayout = cloneLayout(snapshot.layout);
+    const nextSelectedId = restoredLayout[snapshot.selectedItemId]
+      ? snapshot.selectedItemId
+      : Object.keys(restoredLayout)[0] ?? "";
+    selectLayoutItem(nextSelectedId);
+    setSettings((current) => {
+      const next = { ...current, layout: restoredLayout };
+      latestSettingsRef.current = next;
+      return next;
+    });
+  }
+
   function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
   function updateSelectedItem<K extends keyof LayoutItem>(key: K, value: LayoutItem[K]) {
     if (!selectedItemId) return;
-    setSettings((current) => ({
-      ...current,
-      layout: {
-        ...current.layout,
-        [selectedItemId]: { ...current.layout[selectedItemId], [key]: value },
-      },
-    }));
+    const item = latestSettingsRef.current.layout[selectedItemId];
+    if (!item || Object.is(item[key], value)) return;
+    rememberLayoutUndo();
+    setSettings((current) => {
+      const currentItem = current.layout[selectedItemId];
+      if (!currentItem || Object.is(currentItem[key], value)) return current;
+      const next = {
+        ...current,
+        layout: {
+          ...current.layout,
+          [selectedItemId]: { ...currentItem, [key]: value },
+        },
+      };
+      latestSettingsRef.current = next;
+      return next;
+    });
   }
 
   function updateSelectedNumber(key: keyof LayoutItem, value: string, low: number, high: number) {
@@ -360,11 +491,16 @@ function App() {
   async function addWidget() {
     const source = selectedItem?.source ?? metadata.sources.find((item) => item !== "time") ?? "ch1";
     const result = await api.createWidget({ source, layout: settings.layout });
-    setSettings((current) => ({
-      ...current,
-      layout: { ...current.layout, [result.item_id]: result.item },
-    }));
-    setSelectedItemId(result.item_id);
+    rememberLayoutUndo();
+    setSettings((current) => {
+      const next = {
+        ...current,
+        layout: { ...current.layout, [result.item_id]: result.item },
+      };
+      latestSettingsRef.current = next;
+      return next;
+    });
+    selectLayoutItem(result.item_id);
   }
 
   async function duplicateWidget() {
@@ -377,37 +513,103 @@ function App() {
       x: clamp(selectedItem.x + 0.04, 0.05, 0.95),
       y: clamp(selectedItem.y + 0.04, 0.05, 0.95),
     };
-    setSettings((current) => ({
-      ...current,
-      layout: { ...current.layout, [result.item_id]: copy },
-    }));
-    setSelectedItemId(result.item_id);
+    rememberLayoutUndo();
+    setSettings((current) => {
+      const next = {
+        ...current,
+        layout: { ...current.layout, [result.item_id]: copy },
+      };
+      latestSettingsRef.current = next;
+      return next;
+    });
+    selectLayoutItem(result.item_id);
+  }
+
+  function copySelectedWidget() {
+    const item = latestSettingsRef.current.layout[selectedItemIdRef.current];
+    if (!item) return;
+    widgetClipboardRef.current = cloneLayoutItem(item);
+  }
+
+  async function pasteCopiedWidget() {
+    const copiedItem = widgetClipboardRef.current;
+    if (!copiedItem) return;
+
+    const currentLayout = latestSettingsRef.current.layout;
+    const anchorItem = currentLayout[selectedItemIdRef.current] ?? copiedItem;
+    const result = await api.createWidget({ source: copiedItem.source, layout: currentLayout });
+    const name = copiedItem.name || copiedItem.label || copiedItem.source;
+    const pastedItem = {
+      ...result.item,
+      ...cloneLayoutItem(copiedItem),
+      name: `${name} Copy`,
+      x: clamp(anchorItem.x + 0.04, 0.05, 0.95),
+      y: clamp(anchorItem.y + 0.04, 0.05, 0.95),
+    };
+
+    rememberLayoutUndo();
+    setSettings((current) => {
+      const next = {
+        ...current,
+        layout: { ...current.layout, [result.item_id]: pastedItem },
+      };
+      latestSettingsRef.current = next;
+      return next;
+    });
+    selectLayoutItem(result.item_id);
   }
 
   function deleteWidget() {
     if (!selectedItemId) return;
+    if (!latestSettingsRef.current.layout[selectedItemId]) return;
+    rememberLayoutUndo();
     setSettings((current) => {
       const nextLayout = { ...current.layout };
       delete nextLayout[selectedItemId];
       const nextId = Object.keys(nextLayout)[0] ?? "";
-      setSelectedItemId(nextId);
-      return { ...current, layout: nextLayout };
+      selectLayoutItem(nextId);
+      const next = { ...current, layout: nextLayout };
+      latestSettingsRef.current = next;
+      return next;
     });
   }
 
   function resetLayout() {
     void api.defaultLayout().then((loaded) => {
       const nextLayout = loaded.layout;
-      setSettings((current) => ({ ...current, layout: nextLayout }));
-      setSelectedItemId(Object.keys(nextLayout)[0] ?? "");
+      rememberLayoutUndo();
+      setSettings((current) => {
+        const next = { ...current, layout: nextLayout };
+        latestSettingsRef.current = next;
+        return next;
+      });
+      selectLayoutItem(Object.keys(nextLayout)[0] ?? "");
     });
   }
 
   function changeSelectedSource(source: string) {
-    if (!selectedItem) return;
+    if (!selectedItemId) return;
+    const item = latestSettingsRef.current.layout[selectedItemId];
+    if (!item) return;
     const allowed = widgetTypesForSource(metadata, source);
-    updateSelectedItem("source", source);
-    if (!allowed.includes(selectedItem.widget)) updateSelectedItem("widget", allowed[0]);
+    const widget = allowed.includes(item.widget) ? item.widget : allowed[0];
+    if (item.source === source && item.widget === widget) return;
+    rememberLayoutUndo();
+    setSettings((current) => {
+      const currentItem = current.layout[selectedItemId];
+      if (!currentItem) return current;
+      const nextWidget = allowed.includes(currentItem.widget) ? currentItem.widget : allowed[0];
+      if (currentItem.source === source && currentItem.widget === nextWidget) return current;
+      const next = {
+        ...current,
+        layout: {
+          ...current.layout,
+          [selectedItemId]: { ...currentItem, source, widget: nextWidget },
+        },
+      };
+      latestSettingsRef.current = next;
+      return next;
+    });
   }
 
   function previewPointerToFrame(event: React.PointerEvent<HTMLElement>) {
@@ -485,6 +687,9 @@ function App() {
 
   function moveWidget(itemId: string, x: number, y: number) {
     if (!itemId) return;
+    const item = latestSettingsRef.current.layout[itemId];
+    if (!item || (item.x === x && item.y === y)) return;
+    rememberLayoutUndo();
     setSettings((current) => {
       if (!current.layout[itemId]) return current;
       const next = {
@@ -492,6 +697,35 @@ function App() {
         layout: {
           ...current.layout,
           [itemId]: { ...current.layout[itemId], x, y },
+        },
+      };
+      latestSettingsRef.current = next;
+      return next;
+    });
+  }
+
+  function moveSelectedWidgetByPixels(dx: number, dy: number) {
+    if (!selectedItemId) return;
+    clearPreviewEditState();
+
+    const currentItem = latestSettingsRef.current.layout[selectedItemId];
+    if (!currentItem) return;
+    const nextX = clamp(currentItem.x + dx / outputWidth, 0.05, 0.95);
+    const nextY = clamp(currentItem.y + dy / outputHeight, 0.05, 0.95);
+    if (nextX === currentItem.x && nextY === currentItem.y) return;
+    rememberLayoutUndo();
+
+    setSettings((current) => {
+      const item = current.layout[selectedItemId];
+      if (!item) return current;
+      const x = clamp(item.x + dx / outputWidth, 0.05, 0.95);
+      const y = clamp(item.y + dy / outputHeight, 0.05, 0.95);
+      if (x === item.x && y === item.y) return current;
+      const next = {
+        ...current,
+        layout: {
+          ...current.layout,
+          [selectedItemId]: { ...item, x, y },
         },
       };
       latestSettingsRef.current = next;
@@ -610,7 +844,7 @@ function App() {
       const cy = (t + b) / 2;
       draggingItemRef.current = { itemId: found.id, dx: point.x - cx, dy: point.y - cy };
       scheduleDragPreview(found.id, cx / point.frameWidth, cy / point.frameHeight);
-      setSelectedItemId(found.id);
+      selectLayoutItem(found.id);
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
@@ -734,13 +968,26 @@ function App() {
     if (resizingRef.current) {
       const r = resizePreviewRef.current;
       if (r) {
-        setSettings((current) => ({
-          ...current,
-          layout: {
-            ...current.layout,
-            [r.itemId]: { ...current.layout[r.itemId], x: r.x, y: r.y, scale_x: r.scaleX, scale_y: r.scaleY },
-          },
-        }));
+        const item = latestSettingsRef.current.layout[r.itemId];
+        if (
+          item &&
+          (item.x !== r.x || item.y !== r.y || item.scale_x !== r.scaleX || item.scale_y !== r.scaleY)
+        ) {
+          rememberLayoutUndo();
+        }
+        setSettings((current) => {
+          const currentItem = current.layout[r.itemId];
+          if (!currentItem) return current;
+          const next = {
+            ...current,
+            layout: {
+              ...current.layout,
+              [r.itemId]: { ...currentItem, x: r.x, y: r.y, scale_x: r.scaleX, scale_y: r.scaleY },
+            },
+          };
+          latestSettingsRef.current = next;
+          return next;
+        });
       }
       setResizePreview(null);
       resizingRef.current = null;
@@ -886,7 +1133,7 @@ function App() {
           onPointerUp={handlePreviewPointerUp}
           onPointerLeave={() => setPreviewCursor("default")}
           onWheel={handlePreviewWheel}
-          onSetSelectedItemId={setSelectedItemId}
+          onSetSelectedItemId={selectLayoutItem}
           onAddWidget={() => void addWidget()}
           onDuplicateWidget={() => void duplicateWidget()}
           onDeleteWidget={deleteWidget}
