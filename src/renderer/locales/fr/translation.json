@@ -80,7 +80,10 @@
     "addTransform": "Ajouter transform",
     "rangeMin": "Min",
     "rangeCenter": "Centre",
-    "rangeMax": "Max"
+    "rangeMax": "Max",
+    "sectionGraphWindow": "Fenêtre du graphique",
+    "graphBefore": "Temps avant (s)",
+    "graphAfter": "Temps après (s)"
   },
   "colors": {
     "boxFill": "Remplissage boîte",
@@ -92,7 +95,9 @@
     "positiveFill": "Remplissage positif",
     "centerMark": "Repère central",
     "trackFill": "Remplissage piste",
-    "trackOutline": "Contour piste"
+    "trackOutline": "Contour piste",
+    "graphLine": "Ligne",
+    "graphCursor": "Repère actuel"
   },
   "export": {
     "renderSettings": "Paramètres de rendu",

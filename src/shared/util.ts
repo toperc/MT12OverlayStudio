@@ -18,11 +18,18 @@ export const BAR_APPEARANCE_DEFAULTS = {
   cornerRadius: 100,
 };
 
+export const GRAPH_APPEARANCE_DEFAULTS = {
+  beforeMs: 3000,
+  afterMs: 1000,
+  lineThickness: 3,
+};
+
 export function widgetSize(widget: string): [number, number] {
   const sizes: Record<string, [number, number]> = {
     text:  [280, 52],
     bar:   [220, 48],
     gauge: [250, 250],
+    graph: [320, 140],
   };
   return sizes[widget] ?? [180, 60];
 }

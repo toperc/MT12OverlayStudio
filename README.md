@@ -52,11 +52,11 @@ Visual overlay editor. Drag widgets onto a live preview of your frame, resize th
 
 ![Layout editor](docs/screenshots/layout.png)
 
-- **Widget types** — `gauge` (rotating spoke), `bar` (horizontal or vertical via rotation), `text` (value label or timer)
+- **Widget types** — `gauge` (rotating spoke), `bar` (horizontal or vertical via rotation), `graph` (scrolling realtime-style line graph with a configurable window of past and future time around the playhead), `text` (value label or timer)
 - **Sources** — `time` (session clock) plus any channel present in the CSV (`ch1`, `ch2`, … `chN`)
 - **Preview timeline** — scrub through the session to see live animated widget values
 - **Zoom & pan** — mouse wheel to zoom, drag the background to pan; zoom controls in the timeline bar
-- **Inspector** — name, label, position (X/Y as frame fractions), pixel size, shadow toggle, and per-widget color controls
+- **Inspector** — name, label, position (X/Y as frame fractions), pixel size, shadow toggle, and per-widget color controls; graph widgets add a **Graph window** section (time before/after in seconds, line thickness)
 - **Per-widget transforms** — `min`, `max`, `avg` (running session stats) and `%` (map to a custom range) can be chained per widget in the **Data Pipeline** section of the inspector
 
 #### Data Pipeline

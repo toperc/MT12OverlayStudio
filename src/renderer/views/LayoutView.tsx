@@ -12,6 +12,7 @@ import {
 import type { ColorKey, HandleId } from "../utils";
 import {
   BAR_APPEARANCE_DEFAULTS,
+  GRAPH_APPEARANCE_DEFAULTS,
   clamp,
   widgetSize,
   widgetTypesForSource,
@@ -97,7 +98,7 @@ export function LayoutView(props: LayoutViewProps) {
   } = props;
 
   const barNumberControl = (
-    key: "bar_track_fill_thickness" | "bar_track_outline_thickness" | "bar_center_mark_thickness" | "bar_corner_radius",
+    key: "bar_track_fill_thickness" | "bar_track_outline_thickness" | "bar_center_mark_thickness" | "bar_corner_radius" | "graph_line_thickness",
     labelKey: string,
     value: number,
     min: number,
@@ -125,6 +126,40 @@ export function LayoutView(props: LayoutViewProps) {
           max={max}
           step={step}
           value={value}
+          onChange={(e) => update(e.target.value)}
+        />
+      </div>
+    );
+  };
+
+  const graphSecondsControl = (
+    key: "graph_before_ms" | "graph_after_ms",
+    labelKey: string,
+    valueMs: number,
+    minSec: number,
+    maxSec: number,
+  ) => {
+    const label = String(t(labelKey));
+    const update = (raw: string) => onUpdateSelectedItem(key, Math.round(clamp(Number(raw), minSec, maxSec) * 1000) as LayoutItem[typeof key]);
+    return (
+      <div className="prop-row" key={key}>
+        <span className="prop-label" title={label}>{label}</span>
+        <input
+          type="range"
+          className="prop-slider"
+          min={minSec}
+          max={maxSec}
+          step={0.1}
+          value={valueMs / 1000}
+          onChange={(e) => update(e.target.value)}
+        />
+        <input
+          type="number"
+          className="prop-number"
+          min={minSec}
+          max={maxSec}
+          step={0.1}
+          value={valueMs / 1000}
           onChange={(e) => update(e.target.value)}
         />
       </div>
@@ -191,6 +226,7 @@ export function LayoutView(props: LayoutViewProps) {
                 layout={settings.layout}
                 state={previewState}
                 runningStats={runningStats}
+                samples={summary.samples}
                 timeMs={previewTime}
                 width={outputWidth}
                 height={outputHeight}
@@ -365,6 +401,37 @@ export function LayoutView(props: LayoutViewProps) {
                 </details>
               );
             })()}
+
+            {/* ── Graph window ── */}
+            {selectedItem.widget === "graph" && (
+              <details className="inspector-section" open>
+                <summary><span className="section-dot active" />{t("layout.sectionGraphWindow")}</summary>
+                <div className="section-body">
+                  {graphSecondsControl(
+                    "graph_before_ms",
+                    "layout.graphBefore",
+                    selectedItem.graph_before_ms ?? GRAPH_APPEARANCE_DEFAULTS.beforeMs,
+                    0.1,
+                    30,
+                  )}
+                  {graphSecondsControl(
+                    "graph_after_ms",
+                    "layout.graphAfter",
+                    selectedItem.graph_after_ms ?? GRAPH_APPEARANCE_DEFAULTS.afterMs,
+                    0,
+                    30,
+                  )}
+                  {barNumberControl(
+                    "graph_line_thickness",
+                    "layout.controlThickness",
+                    selectedItem.graph_line_thickness ?? GRAPH_APPEARANCE_DEFAULTS.lineThickness,
+                    1,
+                    24,
+                    1,
+                  )}
+                </div>
+              </details>
+            )}
 
             {/* ── Transformación ── */}
             <details className="inspector-section" open>

@@ -1,5 +1,6 @@
 import { createCanvas, type Canvas } from "@napi-rs/canvas";
 import { renderFrame, type DrawCtx, type FrameState, type RunningStats } from "../shared/widgetDraw";
+import type { CsvSample } from "../shared/types";
 
 export function makeCanvas(width: number, height: number): Canvas {
   return createCanvas(width, height);
@@ -20,7 +21,8 @@ export function renderFrameToCanvas(
   timeMs: number,
   frameWidth: number,
   frameHeight: number,
+  samples: CsvSample[] = [],
 ) {
   const ctx = canvas.getContext("2d") as unknown as DrawCtx;
-  renderFrame(ctx, layout, state, runningStats, timeMs, frameWidth, frameHeight);
+  renderFrame(ctx, layout, state, runningStats, timeMs, frameWidth, frameHeight, samples);
 }
