@@ -3,7 +3,7 @@ import { execSync, spawn } from "node:child_process";
 import { app } from "electron";
 import { makeCanvas, renderFrameToCanvas, getRawFrame } from "./frameRenderer";
 import { buildRunningStatsArray, getRunningStatsAt } from "../shared/widgetDraw";
-import { BAR_APPEARANCE_DEFAULTS as BAR_DEFAULTS, clamp, interpolateState } from "../shared/util";
+import { BAR_APPEARANCE_DEFAULTS as BAR_DEFAULTS, GRAPH_APPEARANCE_DEFAULTS as GRAPH_DEFAULTS, clamp, interpolateState } from "../shared/util";
 import type { CsvSample } from "../shared/types";
 import https from "node:https";
 import os from "node:os";
@@ -20,7 +20,7 @@ const APP_NAME = "MT12OverlayStudio";
 const SETTINGS_FILENAME = "overlay_ui_settings.json";
 const DEFAULT_SOURCES = ["time", "ch1", "ch2", "ch3", "ch4"];
 const TIME_SOURCE = "time";
-const CHANNEL_WIDGET_TYPES = ["gauge", "bar", "text"];
+const CHANNEL_WIDGET_TYPES = ["gauge", "bar", "graph", "text"];
 const TIME_WIDGET_TYPES = ["text"];
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_X = 330 / 220;
 const LEGACY_VERTICAL_BAR_TO_BAR_SCALE_Y = 130 / 48;
@@ -29,6 +29,11 @@ const BAR_APPEARANCE_DEFAULTS = {
   bar_track_outline_thickness: BAR_DEFAULTS.trackOutlineThickness,
   bar_center_mark_thickness: BAR_DEFAULTS.centerMarkThickness,
   bar_corner_radius: BAR_DEFAULTS.cornerRadius,
+};
+const GRAPH_APPEARANCE_DEFAULTS = {
+  graph_before_ms: GRAPH_DEFAULTS.beforeMs,
+  graph_after_ms: GRAPH_DEFAULTS.afterMs,
+  graph_line_thickness: GRAPH_DEFAULTS.lineThickness,
 };
 
 function widgetTypesForSource(source: string) {
@@ -252,6 +257,13 @@ function sanitizeLayout(layout: unknown) {
         bar_track_outline_thickness: clamp(Number(userItem.bar_track_outline_thickness ?? itemDefaults.bar_track_outline_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_track_outline_thickness), 0, 24),
         bar_center_mark_thickness: clamp(Number(userItem.bar_center_mark_thickness ?? itemDefaults.bar_center_mark_thickness ?? BAR_APPEARANCE_DEFAULTS.bar_center_mark_thickness), 0, 24),
         bar_corner_radius: clamp(Number(userItem.bar_corner_radius ?? itemDefaults.bar_corner_radius ?? BAR_APPEARANCE_DEFAULTS.bar_corner_radius), 0, 100),
+      });
+    }
+    if (widget === "graph") {
+      Object.assign(sanitizedItem, {
+        graph_before_ms: clamp(Number(userItem.graph_before_ms ?? itemDefaults.graph_before_ms ?? GRAPH_APPEARANCE_DEFAULTS.graph_before_ms), 100, 120000),
+        graph_after_ms: clamp(Number(userItem.graph_after_ms ?? itemDefaults.graph_after_ms ?? GRAPH_APPEARANCE_DEFAULTS.graph_after_ms), 0, 120000),
+        graph_line_thickness: clamp(Number(userItem.graph_line_thickness ?? itemDefaults.graph_line_thickness ?? GRAPH_APPEARANCE_DEFAULTS.graph_line_thickness), 1, 24),
       });
     }
     merged[normalizedId] = sanitizedItem;
@@ -749,7 +761,7 @@ async function renderOverlay(payload: Record<string, unknown>, emit: EmitFn) {
         const timeMs = i * msPerFrame;
         const state = interpolateState(samples, timeMs);
         const runningStats = getRunningStatsAt(runningStatsArray, samples, timeMs);
-        renderFrameToCanvas(canvas, layout, state, runningStats, timeMs, width, height);
+        renderFrameToCanvas(canvas, layout, state, runningStats, timeMs, width, height, samples);
         const raw = getRawFrame(canvas);
         if (!stdin.write(raw)) {
           await new Promise<void>((res, rej) => {
@@ -791,7 +803,7 @@ async function renderOverlay(payload: Record<string, unknown>, emit: EmitFn) {
     const timeMs = i * msPerFrame;
     const state = interpolateState(samples, timeMs);
     const runningStats = getRunningStatsAt(runningStatsArray, samples, timeMs);
-    renderFrameToCanvas(canvas, layout, state, runningStats, timeMs, width, height);
+    renderFrameToCanvas(canvas, layout, state, runningStats, timeMs, width, height, samples);
     const png = await canvas.encode("png");
     writeFileSync(path.join(outputDir, `frame_${String(i).padStart(6, "0")}.png`), png);
     const now = Date.now();

@@ -31,7 +31,7 @@ export const defaultSettings: AppSettings = {
 
 export const fallbackMetadata: AppMetadata = {
   sources: ["time", "ch1", "ch2", "ch3", "ch4"],
-  channel_widget_types: ["gauge", "bar", "text"],
+  channel_widget_types: ["gauge", "bar", "graph", "text"],
   time_widget_types: ["text"],
 };
 
@@ -68,6 +68,18 @@ export function colorControlLabel(item: LayoutItem, key: ColorKey): string | nul
       text_color: null,
       bg_color: "colors.gaugeFill",
       outline_color: "colors.gaugeOutline",
+    };
+    return labels[key];
+  }
+
+  if (item.widget === "graph") {
+    const labels: Record<ColorKey, string | null> = {
+      accent_color: "colors.graphLine",
+      negative_color: null,
+      positive_color: null,
+      text_color: "colors.graphCursor",
+      bg_color: "colors.boxFill",
+      outline_color: "colors.boxOutline",
     };
     return labels[key];
   }

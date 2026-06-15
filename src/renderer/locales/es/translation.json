@@ -80,7 +80,10 @@
     "addTransform": "Añadir transform",
     "rangeMin": "Mín",
     "rangeCenter": "Centro",
-    "rangeMax": "Máx"
+    "rangeMax": "Máx",
+    "sectionGraphWindow": "Ventana de gráfica",
+    "graphBefore": "Tiempo antes (s)",
+    "graphAfter": "Tiempo después (s)"
   },
   "colors": {
     "boxFill": "Relleno caja",
@@ -92,7 +95,9 @@
     "positiveFill": "Relleno positivo",
     "centerMark": "Marca central",
     "trackFill": "Relleno pista",
-    "trackOutline": "Contorno pista"
+    "trackOutline": "Contorno pista",
+    "graphLine": "Línea",
+    "graphCursor": "Marcador actual"
   },
   "export": {
     "renderSettings": "Ajustes de renderizado",

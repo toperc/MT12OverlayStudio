@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import type { FrameState, LayoutItem } from "../../shared/types";
+import type { CsvSample, FrameState, LayoutItem } from "../../shared/types";
 import { WidgetCanvas } from "./WidgetCanvas";
 
 type CapturePayload = {
   layout: Record<string, LayoutItem>;
   state: FrameState;
+  samples?: CsvSample[];
   timeMs: number;
   width: number;
   height: number;
@@ -36,6 +37,7 @@ export function CaptureRenderer() {
       <WidgetCanvas
         layout={payload.layout}
         state={payload.state}
+        samples={payload.samples}
         timeMs={payload.timeMs}
         width={payload.width}
         height={payload.height}

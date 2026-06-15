@@ -6,7 +6,7 @@
  */
 
 import type { CsvSample, LayoutItem } from "./types";
-import { BAR_APPEARANCE_DEFAULTS, clamp, itemBounds } from "./util";
+import { BAR_APPEARANCE_DEFAULTS, GRAPH_APPEARANCE_DEFAULTS, clamp, itemBounds } from "./util";
 
 export type FrameState = Record<string, number>;
 
@@ -71,6 +71,8 @@ export interface DrawCtx {
   font: string;
   textAlign: string;
   textBaseline: string;
+  lineJoin: string;
+  lineCap: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -143,7 +145,7 @@ function rrect(ctx: DrawCtx, x: number, y: number, w: number, h: number, r: numb
 // ─── Widget background ───────────────────────────────────────────────────────
 
 function drawBackground(ctx: DrawCtx, w: number, h: number, item: LayoutItem, sc: number) {
-  if (item.source !== "time" && item.widget !== "text") return;
+  if (item.source !== "time" && item.widget !== "text" && item.widget !== "graph") return;
 
   const borderW = Math.max(1, 2 * sc);
 
@@ -285,6 +287,100 @@ function drawBar(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: nu
   }
 }
 
+// ─── Graph ───────────────────────────────────────────────────────────────────
+
+/** Binary search: index of the last sample with time_ms <= timeMs (or 0). */
+function sampleIndexAt(samples: CsvSample[], timeMs: number): number {
+  let lo = 0, hi = samples.length - 1;
+  if (timeMs <= samples[0].time_ms) return 0;
+  if (timeMs >= samples[hi].time_ms) return hi;
+  while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (samples[mid].time_ms <= timeMs) lo = mid; else hi = mid; }
+  return lo;
+}
+
+function drawGraph(
+  ctx: DrawCtx,
+  item: LayoutItem,
+  samples: CsvSample[],
+  currentNorm: number,
+  timeMs: number,
+  stats: SourceStats | undefined,
+  w: number,
+  h: number,
+  sc: number,
+) {
+  const beforeMs = optionalNumber(item.graph_before_ms, GRAPH_APPEARANCE_DEFAULTS.beforeMs, 100, 120000);
+  const afterMs = optionalNumber(item.graph_after_ms, GRAPH_APPEARANCE_DEFAULTS.afterMs, 0, 120000);
+  const windowMs = beforeMs + afterMs;
+  const startMs = timeMs - beforeMs;
+  const endMs = timeMs + afterMs;
+
+  // Clip everything to the panel drawn by drawBackground
+  const borderW = Math.max(1, 2 * sc);
+  ctx.save();
+  rrect(ctx, borderW, borderW, w - borderW * 2, h - borderW * 2, 8 * sc);
+  ctx.clip();
+
+  const pad = Math.max(3, 8 * sc);
+  const innerH = h - pad * 2;
+  const midY = h / 2;
+  const xFor = (t: number) => ((t - startMs) / windowMs) * w;
+  const yFor = (norm: number) => midY - clamp(norm, -1, 1) * (innerH / 2);
+
+  const normDiv = item.transforms?.includes("%") ? 100 : 1024;
+  const normFor = (raw: number) => clamp(applyTransforms(raw, item.transforms, stats, item) / normDiv, -1, 1);
+
+  // Zero line (faint, full width)
+  ctx.strokeStyle = rgba(item.text_color, 0.3);
+  ctx.lineWidth = Math.max(1, sc);
+  ctx.beginPath();
+  ctx.moveTo(0, midY);
+  ctx.lineTo(w, midY);
+  ctx.stroke();
+
+  // Trace: every sample inside the window, plus interpolated edge points
+  if (samples.length) {
+    const valueAt = (s: CsvSample) => normFor(Number(s.values[item.source]) || 0);
+    const lerpAt = (t: number) => {
+      const i = sampleIndexAt(samples, t);
+      const a = samples[i];
+      const b = samples[Math.min(i + 1, samples.length - 1)];
+      const span = b.time_ms - a.time_ms;
+      const k = span <= 0 ? 0 : clamp((t - a.time_ms) / span, 0, 1);
+      return valueAt(a) + (valueAt(b) - valueAt(a)) * k;
+    };
+
+    ctx.beginPath();
+    ctx.moveTo(xFor(startMs), yFor(lerpAt(startMs)));
+    const first = sampleIndexAt(samples, startMs) + 1;
+    for (let i = first; i < samples.length && samples[i].time_ms < endMs; i++) {
+      ctx.lineTo(xFor(samples[i].time_ms), yFor(valueAt(samples[i])));
+    }
+    ctx.lineTo(xFor(endMs), yFor(lerpAt(endMs)));
+    ctx.strokeStyle = item.accent_color;
+    ctx.lineWidth = Math.max(1, optionalNumber(item.graph_line_thickness, GRAPH_APPEARANCE_DEFAULTS.lineThickness, 1, 24) * sc);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+  }
+
+  // "Now" cursor + current-value dot
+  const cursorX = xFor(timeMs);
+  ctx.strokeStyle = rgba(item.text_color, 0.85);
+  ctx.lineWidth = Math.max(1, 2 * sc);
+  ctx.beginPath();
+  ctx.moveTo(cursorX, 0);
+  ctx.lineTo(cursorX, h);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cursorX, yFor(currentNorm), Math.max(2.5, 5 * sc), 0, Math.PI * 2);
+  ctx.fillStyle = item.accent_color;
+  ctx.fill();
+
+  ctx.restore();
+}
+
 // ─── Text / Time ──────────────────────────────────────────────────────────────
 
 function drawTextWidget(ctx: DrawCtx, item: LayoutItem, value: number, w: number, h: number, _sc: number) {
@@ -313,6 +409,7 @@ function drawWidget(
   timeMs: number,
   fw: number,
   fh: number,
+  samples: CsvSample[],
 ) {
   const [left, top, right, bottom] = itemBounds(item, fw, fh);
   const w = right - left;
@@ -338,6 +435,7 @@ function drawWidget(
     switch (item.widget) {
       case "gauge":        drawGauge(ctx, item, norm, w, h, sc);       break;
       case "bar":          drawBar(ctx, item, norm, w, h, sc);         break;
+      case "graph":        drawGraph(ctx, item, samples, norm, timeMs, stats, w, h, sc); break;
       default:             drawTextWidget(ctx, item, v, w, h, sc);     break;
     }
   }
@@ -355,13 +453,14 @@ export function renderFrame(
   timeMs: number,
   frameWidth: number,
   frameHeight: number,
+  samples: CsvSample[] = [],
 ) {
   ctx.clearRect(0, 0, frameWidth, frameHeight);
 
   for (const item of Object.values(layout)) {
     if (!item || typeof item !== "object") continue;
     try {
-      drawWidget(ctx, item as unknown as LayoutItem, state, runningStats, timeMs, frameWidth, frameHeight);
+      drawWidget(ctx, item as unknown as LayoutItem, state, runningStats, timeMs, frameWidth, frameHeight, samples);
     } catch {
       // skip failed widget without aborting the frame
     }

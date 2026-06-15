@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import type { FrameState, LayoutItem } from "../../shared/types";
+import type { CsvSample, FrameState, LayoutItem } from "../../shared/types";
 import { renderFrame, type DrawCtx, type RunningStats } from "../../shared/widgetDraw";
 
 interface Props {
   layout: Record<string, LayoutItem>;
   state: FrameState;
   runningStats?: RunningStats;
+  samples?: CsvSample[];
   timeMs: number;
   width: number;
   height: number;
@@ -13,7 +14,7 @@ interface Props {
   className?: string;
 }
 
-export function WidgetCanvas({ layout, state, runningStats = {}, timeMs, width, height, style, className }: Props) {
+export function WidgetCanvas({ layout, state, runningStats = {}, samples = [], timeMs, width, height, style, className }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -21,8 +22,8 @@ export function WidgetCanvas({ layout, state, runningStats = {}, timeMs, width, 
     if (!canvas) return;
     const ctx = canvas.getContext("2d") as unknown as DrawCtx;
     if (!ctx) return;
-    renderFrame(ctx, layout as Record<string, unknown>, state, runningStats, timeMs, width, height);
-  }, [layout, state, runningStats, timeMs, width, height]);
+    renderFrame(ctx, layout as Record<string, unknown>, state, runningStats, timeMs, width, height, samples);
+  }, [layout, state, runningStats, samples, timeMs, width, height]);
 
   return (
     <canvas

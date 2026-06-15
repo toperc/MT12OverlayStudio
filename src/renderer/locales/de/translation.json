@@ -80,7 +80,10 @@
     "addTransform": "Transform hinzufügen",
     "rangeMin": "Min",
     "rangeCenter": "Mitte",
-    "rangeMax": "Max"
+    "rangeMax": "Max",
+    "sectionGraphWindow": "Diagrammfenster",
+    "graphBefore": "Zeit davor (s)",
+    "graphAfter": "Zeit danach (s)"
   },
   "colors": {
     "boxFill": "Box-Füllung",
@@ -92,7 +95,9 @@
     "positiveFill": "Positive Füllung",
     "centerMark": "Mittelmarkierung",
     "trackFill": "Spurenfüllung",
-    "trackOutline": "Spurenkontur"
+    "trackOutline": "Spurenkontur",
+    "graphLine": "Linie",
+    "graphCursor": "Jetzt-Markierung"
   },
   "export": {
     "renderSettings": "Render-Einstellungen",

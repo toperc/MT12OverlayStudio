@@ -90,6 +90,9 @@ export type LayoutItem = {
   bar_track_outline_thickness?: number;
   bar_center_mark_thickness?: number;
   bar_corner_radius?: number;
+  graph_before_ms?: number;
+  graph_after_ms?: number;
+  graph_line_thickness?: number;
   transforms?: string[];
   range_min?: number;
   range_center?: number;

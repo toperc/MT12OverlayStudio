@@ -80,7 +80,10 @@
     "addTransform": "Add transform",
     "rangeMin": "Min",
     "rangeCenter": "Center",
-    "rangeMax": "Max"
+    "rangeMax": "Max",
+    "sectionGraphWindow": "Graph window",
+    "graphBefore": "Time before (s)",
+    "graphAfter": "Time after (s)"
   },
   "colors": {
     "boxFill": "Box fill",
@@ -92,7 +95,9 @@
     "positiveFill": "Positive fill",
     "centerMark": "Center mark",
     "trackFill": "Track fill",
-    "trackOutline": "Track outline"
+    "trackOutline": "Track outline",
+    "graphLine": "Line",
+    "graphCursor": "Now marker"
   },
   "export": {
     "renderSettings": "Render Settings",
